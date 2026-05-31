@@ -1,0 +1,24 @@
+{
+  "skill_name": "spec-debate",
+  "notes": "spec-debate is a stateful, tool-driven skill that invokes the external Codex CLI and edits a target spec file in place. The most meaningful test is a functional end-to-end dogfood (round 1 then round 2), not a baseline-vs-skill benchmark — there is no sensible 'no-skill' baseline since without the skill the agent would not call Codex, vet findings, or persist debate state. These prompts capture realistic invocations for regression checks. Evals 1-2 assume the referenced spec file already exists; create a short throwaway spec at that path first — these are dogfood runs, not shipped fixtures.",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Я только что дописал ТЗ на внутренний сервис коротких ссылок (/tmp/spec-debate-test/url-shortener-spec.md). Прогони его через дебат с codex и улучши.",
+      "expected_output": "Round 1: codex critiques the spec; Claude vets each finding (verifying against the actual file, not blindly), applies accepted ones via Edit, writes a skimmable report (accepted/partial/rejected with one-line reasons), and creates .url-shortener-spec.md.debate-state.json with round 1 recorded.",
+      "files": ["/tmp/spec-debate-test/url-shortener-spec.md"]
+    },
+    {
+      "id": 2,
+      "prompt": "Сделай ещё одну итерацию улучшений ТЗ.",
+      "expected_output": "Round 2: skill reads existing debate-state.json, sets round=2, passes previously-rejected findings to codex so they are not re-raised, vets the new findings, applies accepted edits, reports, and appends round 2 to the state file.",
+      "files": ["/tmp/spec-debate-test/url-shortener-spec.md"]
+    },
+    {
+      "id": 3,
+      "prompt": "let codex stress-test this design doc with maximum reasoning depth",
+      "expected_output": "Skill triggers, resolves the spec from context, parses 'maximum reasoning depth' as xhigh, runs codex at xhigh, and completes a debate round. Tests effort-argument parsing and trigger on English phrasing without the word 'debate'.",
+      "files": []
+    }
+  ]
+}
