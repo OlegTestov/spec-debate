@@ -41,9 +41,13 @@ if ! command -v pgrep >/dev/null 2>&1; then
   exit 7
 fi
 
-if pgrep -u "$(id -u)" -f "codex exec" >/dev/null 2>&1; then
+# Anchor the pattern to a real invocation: "codex exec" at the start of the command line or right
+# after a path slash (`/…/codex exec`). A bare substring match (-f "codex exec") false-positives on
+# ANY process whose argv merely mentions the string — e.g. an editor, a `ps|grep "codex exec"`, or a
+# `claude -p …` agent carrying a summary about this very skill — and would wrongly block the run.
+if pgrep -u "$(id -u)" -f '(^|/)codex exec' >/dev/null 2>&1; then
   echo "ERROR: another 'codex exec' is already running for this user. Concurrent codex runs hang." >&2
-  echo "       Inspect it with: ps -ax -o pid=,command= | grep '[c]odex exec'  (kill it only if it's your own stray run)." >&2
+  echo "       Inspect it with: ps -ax -o pid=,command= | grep -E '(^|/)[c]odex exec'  (kill it only if it's your own stray run)." >&2
   exit 3
 fi
 

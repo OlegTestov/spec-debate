@@ -112,7 +112,7 @@ and doesn't depend on the script's executable bit:
 - `<workdir>`: git repo root if the doc is inside one, else the doc's directory (lets Codex
   read referenced source files, read-only).
 - Run it with the Claude Code Bash tool's `timeout` set to `300000` (ms). The helper refuses to start if another `codex exec` is running
-  (concurrent runs hang) — if so, inspect it with `ps -ax -o pid=,command= | grep '[c]odex exec'`
+  (concurrent runs hang) — if so, inspect it with `ps -ax -o pid=,command= | grep -E '(^|/)[c]odex exec'`
   and wait for it to finish; kill it only if it's your own stray run. Never launch a second codex yourself.
 - On a normal run the output ends with `CODEX_EXIT:<n>`; if it's non-zero, the helper has already
   printed codex's stderr inline above — read that and stop. If instead you see an `ERROR:` line and
