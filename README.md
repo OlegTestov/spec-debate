@@ -1,54 +1,59 @@
-# spec-debate — дебат двух моделей над документом
+**English** · [Русский](README_ru.md)
 
-Скилл для **Claude Code**. После того как написал ТЗ / спеку / технический дизайн /
-план реализации — запускаешь `/spec-debate`, и документ начинает критиковать **вторая
-модель (OpenAI Codex)**, а Claude выступает **редактором с правом вето**: проверяет
-каждую претензию по самому файлу (чтением и `grep`, а не на веру), применяет только то,
-что реально улучшает, остальное аргументированно отклоняет.
+# spec-debate — a two-model debate over your document
 
-> Критик, которого слушаются всегда, — это просто второй автор.
-> Критик, с которым спорят, даёт документ лучше, чем каждая модель поодиночке.
+A skill for **Claude Code**. Once you've written a spec / requirements doc / technical design /
+implementation plan, you run `/spec-debate`, and a **second model (OpenAI Codex)** starts tearing
+into the document, while Claude acts as the **editor with veto power**: it verifies every objection
+against the actual file (by reading and `grep`, not on faith), applies only what genuinely improves
+the document, and rejects the rest with a reason.
 
-Один вызов = один раунд. Состояние пишется в `.<имя>.debate-state.json` рядом с
-документом, поэтому повторный вызов продолжает дебат с того места, где остановились, —
-а отклонённые находки передаются Codex'у, чтобы он не поднимал их заново. Зашитый
-принцип — документ **лучше**, а не **больше**: скилл сопротивляется разрастанию сложности.
+> A critic that's always obeyed is just a second author.
+> A critic that's argued with produces a better document than either model alone.
 
-## Требования
+One invocation = one round. State is written to `.<name>.debate-state.json` next to the document,
+so re-invoking continues the debate from where it left off — and rejected findings are handed to
+Codex so it doesn't raise them again. The built-in principle: a **better** document, not a
+**bigger** one — the skill actively resists complexity creep.
 
-- **Claude Code** (CLI от Anthropic).
-- **OpenAI Codex CLI** — установлен и авторизован:
+## Requirements
+
+- **Claude Code** (Anthropic's CLI).
+- **OpenAI Codex CLI** — installed and authenticated:
   ```bash
   npm install -g @openai/codex
-  codex login status    # проверка авторизации (если не залогинен — codex login)
+  codex login status    # auth check (if not logged in: codex login)
   ```
-  Нужен именно *независимый* второй движок — в этом весь смысл дебата.
-- **`bash` и `pgrep`** доступны в PATH — их использует helper-скрипт (есть по умолчанию в macOS и стандартных Linux).
+  You specifically need an *independent* second engine — that's the whole point of the debate.
+- **`bash` and `pgrep`** available on PATH — used by the helper script (present by default on macOS and standard Linux).
 
-## Данные и приватность
+## Data & privacy
 
-spec-debate отправляет **полный текст документа** (и файлы, которые Codex прочитает в workdir) в OpenAI через Codex CLI. Не запускай на материалах, которые нельзя передавать в OpenAI — секреты, клиентские/NDA-данные.
+spec-debate sends the **full text of the document** (and any files Codex reads in the workdir) to
+OpenAI via the Codex CLI. Don't run it on material you can't share with OpenAI — secrets,
+client/NDA data.
 
-## Установка
+## Install
 
-Быстрее всего — склонировать прямо в папку скиллов:
+The fastest way is to clone straight into your skills folder:
 
 ```bash
 git clone https://github.com/OlegTestov/spec-debate ~/.claude/skills/spec-debate
 ```
 
-Или вручную положи папку скилла в одно из мест:
+Or place the skill folder manually in one of:
 
-- `~/.claude/skills/spec-debate/` — персонально, доступно во всех проектах;
-- `<проект>/.claude/skills/spec-debate/` — в конкретном репозитории (можно коммитить).
+- `~/.claude/skills/spec-debate/` — personal, available in every project;
+- `<project>/.claude/skills/spec-debate/` — inside a specific repo (can be committed).
 
-Работает в обоих местах без правок: SKILL.md находит helper-скрипт относительно собственной
-папки скилла. Структура:
+It works in either location without edits: SKILL.md resolves the helper script relative to its own
+folder. Layout:
 
 ```
 spec-debate/
 ├── SKILL.md
 ├── README.md
+├── README_ru.md
 ├── LICENSE
 ├── scripts/
 │   └── run_codex_critique.sh
@@ -56,29 +61,29 @@ spec-debate/
     └── evals.json
 ```
 
-## Использование
+## Usage
 
 ```
-/spec-debate                       # цель — документ из текущего диалога
-/spec-debate path/to/spec.md       # явный путь
-/spec-debate --high                # глубина рассуждений Codex: high (дефолт)
-/spec-debate path --xhigh          # максимум — заметно медленнее
+/spec-debate                       # target = the document from the current conversation
+/spec-debate path/to/spec.md       # explicit path
+/spec-debate --high                # Codex reasoning depth: high (default)
+/spec-debate path --xhigh          # maximum — noticeably slower
 ```
 
-Хочешь ещё раунд — просто вызови скилл снова: он подхватит состояние и пойдёт дальше.
+Want another round? Just invoke the skill again — it picks up the state and continues.
 
-## Как это устроено (коротко)
+## How it works (in brief)
 
-1. Находит документ и называет его **тип и высоту** (ТЗ / дизайн / план) — это задаёт планку критики.
-2. Запускает Codex как «беспощадного ревьюера» строго на этой высоте (helper-скрипт
-   `run_codex_critique.sh` подаёт промпт через stdin — документ не попадает в argv — и не даёт
-   запуститься второму `codex exec`: конкурентные процессы зависают).
-3. **Ветит каждую находку**: проверяет, что она реальна (перечитывает раздел, grep'ает
-   упомянутые файлы/числа), и оценивает пользу на высоте документа. Принимает / частично /
-   отклоняет — с однострочной причиной.
-4. Применяет хирургические правки, перечитывает изменённое на самосогласованность.
-5. Пишет скиммабельный отчёт (accepted / partial / rejected) и сохраняет состояние раунда.
+1. Finds the document and names its **type and altitude** (requirements / design / plan) — this sets the bar for the critique.
+2. Runs Codex as a "relentless reviewer" strictly at that altitude (the helper script
+   `run_codex_critique.sh` feeds the prompt via stdin — the document never lands on argv — and
+   refuses to start a second `codex exec`: concurrent runs hang).
+3. **Vets every finding**: checks that it's real (re-reads the section, `grep`s any referenced
+   files/numbers) and judges its value at the document's altitude. Accept / partial / reject —
+   each with a one-line reason.
+4. Applies surgical edits, then re-reads the changed sections for self-consistency.
+5. Writes a skimmable report (accepted / partial / rejected) and saves the round's state.
 
-## Лицензия
+## License
 
-MIT. См. [LICENSE](LICENSE).
+MIT. See [LICENSE](LICENSE).
