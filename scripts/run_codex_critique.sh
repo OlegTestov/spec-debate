@@ -41,18 +41,30 @@ if ! command -v pgrep >/dev/null 2>&1; then
   exit 7
 fi
 
-# Anchor the pattern to a real invocation: "codex exec" at the start of the command line or right
-# after a path slash (`/…/codex exec`). A bare substring match (-f "codex exec") false-positives on
-# ANY process whose argv merely mentions the string — e.g. an editor, a `ps|grep "codex exec"`, or a
-# `claude -p …` agent carrying a summary about this very skill — and would wrongly block the run.
-if pgrep -u "$(id -u)" -f '(^|/)codex exec' >/dev/null 2>&1; then
-  echo "ERROR: another 'codex exec' is already running for this user. Concurrent codex runs hang." >&2
-  # The inspection hint uses a LOOSE substring on purpose: `ps` prefixes each line with the PID, so the
-  # (^|/) anchor used in the pgrep guard above would never match ps output. A human reading the result can
-  # tell a real codex from a process that merely mentions the string, so loose is correct here.
-  echo "       Inspect it with: ps -ax -o pid=,command= | grep '[c]odex exec'  (kill it only if it's your own stray run)." >&2
-  exit 3
-fi
+# Match a real Codex invocation: "codex" at the start of the command line or right after a path slash,
+# with "exec" as the following token — so `codex exec`, `/…/codex exec`, and versioned/wrapper binaries
+# (`/…/codex-<triple> exec`, `…/codex.js exec`) all count. This REDUCES, but cannot fully eliminate,
+# false positives: a bare substring match (-f "codex exec") trips on ANY process whose argv merely
+# mentions the string (an editor, a `ps|grep`, a `claude -p …` agent carrying a summary about this very
+# skill); the bounded form excludes those — though a prose mention containing a real `/path/codex exec`
+# can still match. pgrep -f matches the raw argv, so the boundaries work there.
+# Distinguish pgrep's exit codes: 0 = a match (block), 1 = no match (proceed), anything else = pgrep
+# itself failed (e.g. cannot read the process list) → fail closed rather than run unguarded.
+pgrep_status=0
+pgrep -u "$(id -u)" -f '(^|/)codex([^/[:space:]]*)? exec([[:space:]]|$)' >/dev/null 2>&1 || pgrep_status=$?
+case "$pgrep_status" in
+  0)
+    echo "ERROR: another 'codex exec' is already running for this user. Concurrent codex runs hang." >&2
+    # The inspection hint is a LOOSE substring on purpose: `ps` prefixes each line with the PID, so the
+    # bounded guard pattern misses the bare `<pid> codex exec` form in ps output. A human reading the
+    # result can tell a real codex from a process that merely mentions the string, so loose is right here.
+    echo "       Inspect it with: ps -ax -o pid=,command= | grep '[c]odex exec'  (kill it only if it's your own stray run)." >&2
+    exit 3 ;;
+  1) ;;  # no concurrent codex — proceed
+  *)
+    echo "ERROR: pgrep failed (exit $pgrep_status); cannot enforce one-codex-at-a-time (fail-closed)." >&2
+    exit 7 ;;
+esac
 
 if [ ! -r "$PROMPT_FILE" ]; then
   echo "ERROR: prompt file not found or not readable: $PROMPT_FILE" >&2

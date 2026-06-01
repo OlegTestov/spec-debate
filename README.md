@@ -26,8 +26,9 @@ Codex so it doesn't raise them again. The built-in principle: a **better** docum
   ```
   You specifically need an *independent* second engine — that's the whole point of the debate.
 - **`bash` and `pgrep`** on PATH — used by the helper script. Present by default on **macOS and standard Linux**.
-  **Windows: use WSL2** (a normal Linux environment). Native-Windows Claude Code runs the script via Git Bash,
-  which ships no `pgrep` — the helper then fail-closes with a clear error rather than running unguarded.
+  **Windows: use WSL2** (a normal Linux environment) — that's the supported path. Native Windows isn't supported:
+  under Git Bash `pgrep` is typically absent so the helper fail-closes, and without Git Bash there's no `bash` to
+  run the script at all.
 
 ## Data & privacy
 
