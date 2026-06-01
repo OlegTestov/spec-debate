@@ -25,7 +25,9 @@ Codex so it doesn't raise them again. The built-in principle: a **better** docum
   codex login status    # auth check (if not logged in: codex login)
   ```
   You specifically need an *independent* second engine — that's the whole point of the debate.
-- **`bash` and `pgrep`** available on PATH — used by the helper script (present by default on macOS and standard Linux).
+- **`bash` and `pgrep`** on PATH — used by the helper script. Present by default on **macOS and standard Linux**.
+  **Windows: use WSL2** (a normal Linux environment). Native-Windows Claude Code runs the script via Git Bash,
+  which ships no `pgrep` — the helper then fail-closes with a clear error rather than running unguarded.
 
 ## Data & privacy
 

@@ -37,7 +37,7 @@ fi
 
 if ! command -v pgrep >/dev/null 2>&1; then
   echo "ERROR: pgrep not found; cannot enforce one-codex-at-a-time (fail-closed)." >&2
-  echo "       Install procps (Linux) or use a shell that provides pgrep (macOS has it)." >&2
+  echo "       macOS has it; on Linux install procps. On Windows use WSL2 — Git Bash ships no pgrep." >&2
   exit 7
 fi
 
@@ -47,7 +47,10 @@ fi
 # `claude -p …` agent carrying a summary about this very skill — and would wrongly block the run.
 if pgrep -u "$(id -u)" -f '(^|/)codex exec' >/dev/null 2>&1; then
   echo "ERROR: another 'codex exec' is already running for this user. Concurrent codex runs hang." >&2
-  echo "       Inspect it with: ps -ax -o pid=,command= | grep -E '(^|/)[c]odex exec'  (kill it only if it's your own stray run)." >&2
+  # The inspection hint uses a LOOSE substring on purpose: `ps` prefixes each line with the PID, so the
+  # (^|/) anchor used in the pgrep guard above would never match ps output. A human reading the result can
+  # tell a real codex from a process that merely mentions the string, so loose is correct here.
+  echo "       Inspect it with: ps -ax -o pid=,command= | grep '[c]odex exec'  (kill it only if it's your own stray run)." >&2
   exit 3
 fi
 
