@@ -116,8 +116,8 @@ and doesn't depend on the script's executable bit:
   and wait for it to finish; kill it only if it's your own stray run. Never launch a second codex yourself.
 - On a normal run the output ends with `CODEX_EXIT:<n>`; if it's non-zero, the helper has already
   printed codex's stderr inline above — read that and stop. If instead you see an `ERROR:` line and
-  no `CODEX_EXIT` (a preflight failure: codex/pgrep missing, bad effort/workdir, unreadable prompt),
-  read that error and stop.
+  no `CODEX_EXIT` (a preflight failure: codex/pgrep missing or pgrep failing, bad effort/workdir,
+  unreadable prompt), read that error and stop.
 
 ## Step 4 — Vet every finding (the core)
 Go through findings one at a time:
