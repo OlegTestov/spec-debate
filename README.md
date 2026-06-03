@@ -1,20 +1,26 @@
 **English** · [Русский](README_ru.md)
 
-# spec-debate — a two-model debate over your document
+# spec-debate — a two-model debate over your plan, spec, or proposed solution
 
-A skill for **Claude Code**. Once you've written a spec / requirements doc / technical design /
-implementation plan, you run `/spec-debate`, and a **second model (OpenAI Codex)** starts tearing
-into the document, while Claude acts as the **editor with veto power**: it verifies every objection
-against the actual file (by reading and `grep`, not on faith), applies only what genuinely improves
-the document, and rejects the rest with a reason.
+A skill for **Claude Code**. Once you've written a plan, spec, requirements doc, or technical
+design, you run `/spec-debate`, and a **second model (OpenAI Codex)** starts tearing into it,
+while Claude acts as the **editor with veto power**: it verifies every objection against the
+actual file (by reading and `grep`, not on faith), applies only what genuinely improves it, and
+rejects the rest with a reason.
+
+It's not only for a finished document: you can "consult Codex" mid-flight — while you and Claude
+are working out or sanity-checking an approach — and the skill runs a focused round and hands back
+an independent review before you carry on.
 
 > A critic that's always obeyed is just a second author.
-> A critic that's argued with produces a better document than either model alone.
+> A critic that's argued with produces a better result than either model alone.
 
-One invocation = one round. State is written to `.<name>.debate-state.json` next to the document,
-so re-invoking continues the debate from where it left off — and rejected findings are handed to
-Codex so it doesn't raise them again. The built-in principle: a **better** document, not a
-**bigger** one — the skill actively resists complexity creep.
+By default, one invocation = one round: critique → veto → edits → report → saved state
+(`.<name>.debate-state.json` next to the document). Need several rounds? Invoke again (it
+continues where it left off), or just ask up front — "run 3 rounds" or "keep going until no
+significant findings remain". Rejected findings are handed to Codex so it doesn't raise them
+again. The built-in principle: a **better** result, not a **bigger** one — the skill actively
+resists complexity creep.
 
 ## Requirements
 
@@ -38,13 +44,17 @@ client/NDA data.
 
 ## Install
 
-The fastest way is to clone straight into your skills folder:
+The simplest way — if your Claude Code can run shell commands — is to ask it to install the skill:
+
+> Install https://github.com/OlegTestov/spec-debate into ~/.claude/skills/spec-debate
+
+It'll clone the repo into your skills folder. If that doesn't work, clone it manually:
 
 ```bash
 git clone https://github.com/OlegTestov/spec-debate ~/.claude/skills/spec-debate
 ```
 
-Or place the skill folder manually in one of:
+The skill folder can live in either of:
 
 - `~/.claude/skills/spec-debate/` — personal, available in every project;
 - `<project>/.claude/skills/spec-debate/` — inside a specific repo (can be committed).
@@ -67,13 +77,14 @@ spec-debate/
 ## Usage
 
 ```
-/spec-debate                       # target = the document from the current conversation
+/spec-debate                       # target = the plan/spec from the current conversation
 /spec-debate path/to/spec.md       # explicit path
-/spec-debate --high                # Codex reasoning depth: high (default)
-/spec-debate path --xhigh          # maximum — noticeably slower
+/spec-debate path --xhigh          # maximum Codex reasoning depth (default is high); noticeably slower
 ```
 
-Want another round? Just invoke the skill again — it picks up the state and continues.
+Want another round? Just invoke the skill again — it picks up the state and continues. You can
+also add free-form instructions, e.g. "run 3 rounds" or "keep going until no significant findings
+remain".
 
 ## How it works (in brief)
 

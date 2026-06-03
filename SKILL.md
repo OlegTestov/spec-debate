@@ -8,8 +8,9 @@ description: >-
   second opinion — even without the word "debate". Triggers on phrases like "прогони
   ТЗ через дебат", "let codex critique this plan", "stress-test this spec", "вторая
   модель пусть раскритикует", "do another round / ещё итерацию", "улучши спеку с
-  codex". Each invocation runs ONE round; the user re-invokes for more rounds, and the
-  skill remembers what was settled so rounds don't repeat.
+  codex". One invocation runs ONE round by default; if the user explicitly asks for
+  several rounds (a count, or "until no significant findings remain"), run them in
+  sequence. The skill remembers what was settled so rounds don't repeat.
 ---
 
 # spec-debate — two-model debate to optimize a document
@@ -27,9 +28,12 @@ core scenarios, resolve contradictions, fix real risks, remove ambiguity, improv
 Resist drift toward ever-more complexity across rounds — accept added complexity only when
 a real gap, risk, or important UX need justifies it.
 
-One invocation = one round. The user runs each round and decides when to stop; your job is
-to make progress visible, not to decide it. State persists in `.<filename>.debate-state.json` next to
-the document so re-invoking continues instead of relitigating settled points.
+By default one invocation = one round, and the user decides when to run the next. If they
+explicitly ask for several rounds — a count ("run 3 rounds") or a stop condition ("until no
+significant findings remain") — run them in sequence in this invocation. Your job is to make each
+round's progress visible, not to silently decide how many to run. State persists in
+`.<filename>.debate-state.json` next to the document so each round continues instead of
+relitigating settled points.
 
 ---
 
@@ -41,11 +45,18 @@ the document so re-invoking continues instead of relitigating settled points.
 2. Parse reasoning effort from the invocation (`--high|--medium|--low|--xhigh`, `effort=…`,
    or an unambiguous natural-language request like "maximum reasoning depth" / «максимальная
    глубина» → `xhigh`). Default `high`. `xhigh` is much slower — only on explicit request.
+3. Parse any round directive: an explicit count ("run 3 rounds" / «прогони 3 раунда») or a
+   stop condition ("until no significant findings remain" / «пока не останется значимых
+   замечаний»). A count is a maximum — stop early if a round comes back clean. Default: one
+   round. Honor it in Step 7.
 
 ## Step 1 — Resolve the target and its altitude
 Find the one document to work on, in priority order:
 1. Explicit path argument in the invocation.
-2. The document you wrote or edited earlier in *this* conversation (the common case).
+2. The document you wrote or edited earlier in *this* conversation (the common case). If the
+   plan/approach you and the user have been working out lives only in the conversation and not
+   yet in a file, write it to a markdown file first (e.g. `PLAN.md` in the working dir) — the
+   debate needs a target file to edit and to hold its `.debate-state.json`.
 3. Otherwise ask for the path — don't guess across the filesystem.
 
 Then **name the document's type and altitude**, because it governs every later judgment:
@@ -158,12 +169,26 @@ Skimmable; this is the deliverable the user reads to decide whether to run again
 - Open gaps still worth a round, or "no significant gaps remain at this altitude".
 - Progress so far (findings per round, from state): e.g. "r1: 12 · r2: 5".
 ```
-One-line reasons. Don't tell the user to stop or continue — show the state; they decide.
+One-line reasons. Don't recommend whether to stop or continue — show the state; the user decides
+(in an explicit multi-round run, keep going per their directive).
 
-## Step 7 — Persist and end
+## Step 7 — Persist, then continue or end
 Append this round (number, effort, findings with verdicts/reasons/edits) to
-`.<filename>.debate-state.json`. Tell the user they can invoke the skill again to run the
-next round, which will pick up from round N+1. One invocation is one round — never loop.
+`.<filename>.debate-state.json`. Then:
+- **If the user asked for multiple rounds** (a count from Step 0, or "until no significant
+  findings remain") — run the next round now. Before each subsequent round, re-read the updated
+  document in full and gather **all** settled findings from state (including the round just
+  appended) to hand to Codex, then repeat Steps 3–6 and append as round N+1. Stop at the first of:
+  - you reach the requested count (a bare count is a maximum — stop early if a round is clean);
+  - a round yields no accepted/partial finding of **major or higher** severity — nothing
+    *significant* is left, and minor polish doesn't justify another round (apply the minor fixes, then stop);
+  - a hard cap of **5 rounds** when no explicit count was given — stop and report that actionable
+    findings may still remain.
+  Report each round as you go.
+- **Otherwise** — stop after this one round and tell the user they can invoke the skill again to
+  continue from round N+1.
+
+Don't loop unless the user asked for more than one round — a bare invocation is exactly one round.
 
 ---
 
