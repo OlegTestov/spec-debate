@@ -1,15 +1,15 @@
 ---
 name: spec-debate
 description: >-
-  Optimize a spec, ТЗ, technical design, PRD, or implementation plan by having a
+  Optimize a spec, technical design, PRD, or implementation plan by having a
   second AI (OpenAI Codex) critique it, then critically vetting each critique before
   applying it. Use whenever the user has just written or finished such a document and
   wants it reviewed, hardened, stress-tested, gap-checked, or "debated" against a
   second opinion — even without the word "debate". Also covers a quick mid-flight
   second opinion while an approach is still being worked out in conversation.
-  Triggers on phrases like "прогони ТЗ через дебат", "let codex critique this plan",
-  "stress-test this spec", "вторая модель пусть раскритикует", "do another round /
-  ещё итерацию", "улучши спеку с codex", "посоветуйся с кодексом". One invocation
+  Triggers on phrases like "run this spec through debate", "let codex critique this
+  plan", "stress-test this spec", "have the second model critique it", "do another
+  round", "improve the spec with Codex", "consult Codex". One invocation
   runs ONE round by default; if the user explicitly asks for several rounds (a count,
   or "until no significant findings remain"), run them in sequence. A bounded
   advisory consult with no working document runs as a single prompt-only round. The
@@ -46,11 +46,10 @@ relitigating settled points.
    authenticated: `codex login status`; if it isn't logged in, stop and tell the user to run
    `codex login`. Don't substitute another tool — the debate needs an *independent* second model.
 2. Parse reasoning effort from the invocation (`--high|--medium|--low|--xhigh`, `effort=…`,
-   or an unambiguous natural-language request like "maximum reasoning depth" / «максимальная
-   глубина» → `xhigh`). Default `high`. `xhigh` is much slower — only on explicit request.
-3. Parse any round directive: an explicit count ("run 3 rounds" / «прогони 3 раунда») or a
-   stop condition ("until no significant findings remain" / «пока не останется значимых
-   замечаний»). A count is a maximum — stop early if a round comes back clean. Default: one
+   or an unambiguous natural-language request like "maximum reasoning depth" → `xhigh`). Default `high`. `xhigh` is much slower — only on explicit request.
+3. Parse any round directive: an explicit count ("run 3 rounds") or a stop condition
+   ("until no significant findings remain"). A count is a maximum — stop early if a round
+   comes back clean. Default: one
    round. Honor it in Step 7.
 
 ## Step 1 — Resolve the target and its altitude
@@ -82,7 +81,7 @@ as you judged it; edit: "seeded into the initial document" or null), so the next
 them to Codex as settled.
 
 Then **name the document's type and altitude**, because it governs every later judgment:
-- *requirements / ТЗ* → altitude is what & why, contracts, acceptance criteria;
+- *requirements* → altitude is what & why, contracts, acceptance criteria;
 - *technical design / spec* → architecture, key mechanisms, data models, trade-offs;
 - *implementation plan* → concrete steps, file-level changes, sequencing, configs.
 
@@ -147,8 +146,7 @@ DOCUMENT:
 
 Run the helper via `bash`, resolving its path relative to this skill's own directory — the
 folder that contains this `SKILL.md` (the runtime shows it above as "Base directory for this
-skill", e.g. `~/.claude/skills/spec-debate`). This works for both global and in-project installs
-and doesn't depend on the script's executable bit:
+skill", e.g. `~/.claude/skills/spec-debate`):
 `bash "<skill_dir>/scripts/run_codex_critique.sh" <prompt_file> <effort> <workdir>`
 - `<workdir>`: git repo root if the doc is inside one, else the doc's directory (lets Codex
   read referenced source files, read-only).
@@ -186,7 +184,7 @@ Catching it here is what makes the debate converge instead of churn. Don't leave
 "to decide later"; make the call now.
 
 ## Step 6 — Report (make progress visible)
-Skimmable; this is the deliverable the user reads to decide whether to run again:
+Use this skimmable format:
 ```
 ## spec-debate — round N (<effort>) · `path`  ·  codex raised M findings
 ### Accepted (K)
