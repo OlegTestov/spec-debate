@@ -4,13 +4,12 @@
 
 A skill for **Claude Code**. Once you've written a plan, spec, requirements doc, or technical
 design, you run `/spec-debate`, and a **second model (OpenAI Codex)** starts tearing into it,
-while Claude acts as the **editor with veto power**: it verifies every objection against the
-actual file (by reading and `grep`, not on faith), applies only what genuinely improves it, and
-rejects the rest with a reason.
+while Claude acts as the **editor with veto power**: it carefully verifies every objection,
+applies only what genuinely improves it, and rejects the rest with a reason.
 
-It's not only for a finished document: you can "consult Codex" mid-flight — while you and Claude
-are working out or sanity-checking an approach — and the skill runs a focused round and hands back
-an independent review before you carry on.
+It's not only for finished specs: you can "consult Codex" mid-flight — the skill runs one round
+and hands back an independent review with no state saved. If you decide to keep working with
+Codex, it automatically creates the iterations file and switches to standard debate mode.
 
 > A critic that's always obeyed is just a second author.
 > A critic that's argued with produces a better result than either model alone.
