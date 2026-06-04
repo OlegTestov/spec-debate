@@ -11,8 +11,9 @@ description: >-
   "stress-test this spec", "вторая модель пусть раскритикует", "do another round /
   ещё итерацию", "улучши спеку с codex", "посоветуйся с кодексом". One invocation
   runs ONE round by default; if the user explicitly asks for several rounds (a count,
-  or "until no significant findings remain"), run them in sequence. The skill
-  remembers what was settled so rounds don't repeat.
+  or "until no significant findings remain"), run them in sequence. A bounded
+  advisory consult with no working document runs as a single prompt-only round. The
+  skill remembers what was settled so rounds don't repeat.
 ---
 
 # spec-debate — two-model debate to optimize a document
@@ -67,13 +68,18 @@ Find the one document to work on, in priority order:
 
 **Prompt-only consult — the one exception.** A bounded advisory question whose output is just
 an opinion or comparison ("is this rule well designed?", "A or B, and why?"), with no working
-object to edit, may skip the file: write the question plus the relevant conversation context
-directly into the critique prompt (user statements verbatim; mark your own summaries as yours),
-run it, and skip state entirely. Report it as: Codex's position, your own vetted take on it,
-and the prompt file's path so the user can audit exactly what was sent. A prompt-only consult
-is strictly ONE round and is not a debate — for any follow-up round, requested edit, or
-convergence tracking, materialize the subject into a markdown file first and seed it (and
-`.debate-state.json`, as round 1) with the consult's conclusions.
+object to edit, may skip the file. If the invocation also asks for multiple rounds, it is not
+prompt-only — iteration is expected, so materialize and run a normal debate. Execution path:
+skip Step 2 (no state); in Step 3, replace the document template with a free-form prompt — a
+role line, the question, and the relevant conversation context (user statements verbatim; mark
+your own summaries as yours), with `<workdir>` = the current working directory; vet the
+response per Step 4; skip Steps 5 and 7. Report (instead of the Step 6 format): Codex's
+position, your own vetted take on it, and the prompt file's path so the user can audit exactly
+what was sent. A prompt-only consult is strictly ONE round — for any follow-up round or
+requested edit, materialize the subject into a markdown file first and seed
+`.debate-state.json` as round 1 by converting each vetted conclusion into a finding (verdict
+as you judged it; edit: "seeded into the initial document" or null), so the next round hands
+them to Codex as settled.
 
 Then **name the document's type and altitude**, because it governs every later judgment:
 - *requirements / ТЗ* → altitude is what & why, contracts, acceptance criteria;
