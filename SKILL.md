@@ -96,6 +96,8 @@ Look for `.<filename>.debate-state.json` beside the document.
 - Not found → round 1, fresh state.
 - Found → next round = `last_round + 1`. Collect prior `rejected` and `partial` findings
   with their reasons; you'll hand them to Codex so it doesn't re-raise settled points.
+- Found but malformed JSON → repair it from its readable content first (the rounds and
+  findings are usually intact as text) — don't discard history.
 
 Schema:
 ```json
@@ -202,7 +204,10 @@ One-line reasons. Don't recommend whether to stop or continue — show the state
 
 ## Step 7 — Persist, then continue or end
 Append this round (number, effort, findings with verdicts/reasons/edits) to
-`.<filename>.debate-state.json`. Then:
+`.<filename>.debate-state.json`. Rewrite the file as one complete JSON document — don't
+string-append a new round after the closing brackets — and verify it parses
+(`python3 -c 'import json,sys; json.load(open(sys.argv[1]))' <file>`); a malformed state
+file silently breaks every later round. Then:
 - **If the user asked for multiple rounds** (a count from Step 0, or "until no significant
   findings remain") — run the next round now. Before each subsequent round, re-read the updated
   document in full and gather **all** settled findings from state (including the round just
