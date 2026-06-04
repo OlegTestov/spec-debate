@@ -5,12 +5,14 @@ description: >-
   second AI (OpenAI Codex) critique it, then critically vetting each critique before
   applying it. Use whenever the user has just written or finished such a document and
   wants it reviewed, hardened, stress-tested, gap-checked, or "debated" against a
-  second opinion — even without the word "debate". Triggers on phrases like "прогони
-  ТЗ через дебат", "let codex critique this plan", "stress-test this spec", "вторая
-  модель пусть раскритикует", "do another round / ещё итерацию", "улучши спеку с
-  codex". One invocation runs ONE round by default; if the user explicitly asks for
-  several rounds (a count, or "until no significant findings remain"), run them in
-  sequence. The skill remembers what was settled so rounds don't repeat.
+  second opinion — even without the word "debate". Also covers a quick mid-flight
+  second opinion while an approach is still being worked out in conversation.
+  Triggers on phrases like "прогони ТЗ через дебат", "let codex critique this plan",
+  "stress-test this spec", "вторая модель пусть раскритикует", "do another round /
+  ещё итерацию", "улучши спеку с codex", "посоветуйся с кодексом". One invocation
+  runs ONE round by default; if the user explicitly asks for several rounds (a count,
+  or "until no significant findings remain"), run them in sequence. The skill
+  remembers what was settled so rounds don't repeat.
 ---
 
 # spec-debate — two-model debate to optimize a document
@@ -56,8 +58,22 @@ Find the one document to work on, in priority order:
 2. The document you wrote or edited earlier in *this* conversation (the common case). If the
    plan/approach you and the user have been working out lives only in the conversation and not
    yet in a file, write it to a markdown file first (e.g. `PLAN.md` in the working dir) — the
-   debate needs a target file to edit and to hold its `.debate-state.json`.
+   debate needs a target file to edit and to hold its `.debate-state.json`. Default to the
+   file even for a quick "consult Codex" ask whenever the subject may become a working
+   object — a plan, spec, rule, design decision, or sequence of steps someone will act on.
+   The file is cheap (you write it, not the user) and doubles as the auditable record of
+   exactly what was sent to Codex.
 3. Otherwise ask for the path — don't guess across the filesystem.
+
+**Prompt-only consult — the one exception.** A bounded advisory question whose output is just
+an opinion or comparison ("is this rule well designed?", "A or B, and why?"), with no working
+object to edit, may skip the file: write the question plus the relevant conversation context
+directly into the critique prompt (user statements verbatim; mark your own summaries as yours),
+run it, and skip state entirely. Report it as: Codex's position, your own vetted take on it,
+and the prompt file's path so the user can audit exactly what was sent. A prompt-only consult
+is strictly ONE round and is not a debate — for any follow-up round, requested edit, or
+convergence tracking, materialize the subject into a markdown file first and seed it (and
+`.debate-state.json`, as round 1) with the consult's conclusions.
 
 Then **name the document's type and altitude**, because it governs every later judgment:
 - *requirements / ТЗ* → altitude is what & why, contracts, acceptance criteria;
@@ -108,6 +124,12 @@ language. Group by section.
 <if state has settled findings:>
 Already settled in prior rounds — do NOT re-raise without a genuinely new argument:
 - "<title>" — <rejected|partial>: <reason>
+
+<if constraints or decisions from the conversation aren't reflected in the document yet:>
+Supplementary context from the working conversation (NOT part of the document; provenance marked):
+- [user, verbatim] "<...>"
+- [editor summary] <...>
+Distinguish findings grounded in the document itself from findings that depend on this context.
 
 DOCUMENT:
 ---
