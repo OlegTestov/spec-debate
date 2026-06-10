@@ -5,13 +5,13 @@
     {
       "id": 1,
       "prompt": "Я только что дописал ТЗ на внутренний сервис коротких ссылок (/tmp/spec-debate-test/url-shortener-spec.md). Прогони его через дебат с codex и улучши.",
-      "expected_output": "Round 1: codex critiques the spec; Claude vets each finding (verifying against the actual file, not blindly), applies accepted ones via Edit, writes a skimmable report (accepted/partial/rejected with one-line reasons), and creates .url-shortener-spec.md.debate-state.json with round 1 recorded.",
+      "expected_output": "Round 1: Claude and codex each independently propose improvements (codex does not see Claude's current-round list); Claude merges both lists with veto (verifying against the actual file, not blindly), applies accepted ones via Edit, writes a skimmable report (accepted/partial/rejected with one-line reasons and source codex|own — rejected own proposals included), and creates .url-shortener-spec.md.debate-state.json with round 1 recorded.",
       "files": ["/tmp/spec-debate-test/url-shortener-spec.md"]
     },
     {
       "id": 2,
       "prompt": "Сделай ещё одну итерацию улучшений ТЗ.",
-      "expected_output": "Round 2: skill reads existing debate-state.json, sets round=2, passes previously-rejected findings to codex so they are not re-raised, vets the new findings, applies accepted edits, reports, and appends round 2 to the state file.",
+      "expected_output": "Round 2: skill reads the existing .url-shortener-spec.md.debate-state.json, sets round=2, passes settled (rejected/partial) verdicts to codex so they are not re-raised, gathers fresh proposals from both models, merges with veto, applies accepted edits, reports with convergence status, and appends round 2 to the state file.",
       "files": ["/tmp/spec-debate-test/url-shortener-spec.md"]
     },
     {

@@ -1,231 +1,261 @@
 ---
 name: spec-debate
 description: >-
-  Optimize a spec, technical design, PRD, or implementation plan by having a
-  second AI (OpenAI Codex) critique it, then critically vetting each critique before
-  applying it. Use whenever the user has just written or finished such a document and
-  wants it reviewed, hardened, stress-tested, gap-checked, or "debated" against a
-  second opinion — even without the word "debate". Also covers a quick mid-flight
-  second opinion while an approach is still being worked out in conversation.
-  Triggers on phrases like "run this spec through debate", "let codex critique this
-  plan", "stress-test this spec", "have the second model critique it", "do another
-  round", "improve the spec with Codex", "consult Codex". One invocation
-  runs ONE round by default; if the user explicitly asks for several rounds (a count,
-  or "until no significant findings remain"), run them in sequence. A bounded
-  advisory consult with no working document runs as a single prompt-only round. The
-  skill remembers what was settled so rounds don't repeat.
+  Make a spec, plan, design, PRD — or the approach for a task or a code change you are about to
+  work on — measurably better by debating it with a second AI (OpenAI Codex) and vetting every
+  point yourself with veto power. The iterated artifact is ALWAYS a spec: for a bare task you draft
+  one, for code you draft a change-spec (the code itself is not edited during the debate), for an
+  existing spec you take it as-is. Use ONLY when a second opinion is explicitly requested — phrases
+  like "consult Codex", "ask Codex", "think it through with Codex", "get a second opinion",
+  "debate / stress-test this", "let the second model critique it", "do another round". A bare
+  "write a spec" / "refactor this" WITHOUT asking for a second opinion does NOT trigger this skill.
+  A bounded advisory question runs as a single prompt-only consult; otherwise one invocation = one
+  round unless several are requested. The skill remembers what was settled so rounds don't repeat.
 ---
 
-# spec-debate — two-model debate to optimize a document
+# spec-debate — debate a spec with a second model, with veto
 
-You orchestrate a debate between yourself (Claude Code) and OpenAI Codex to make a
-document measurably better. Codex is the relentless critic. You are the **editor with
-veto power**: never apply Codex's suggestions blindly — verify each against the actual
-document and accept only what genuinely improves it.
+You orchestrate a debate between yourself (Claude) and OpenAI Codex to make a **spec** measurably
+better. You are the **editor with veto power**: never apply a point blindly — verify each against the
+actual spec and keep only what genuinely improves it. The vetting is the whole point; a critic that's
+always obeyed is just a second author.
 
-The vetting is the whole point. A critic that's always obeyed is just a second author; a
-critic that's argued with produces a better document than either model alone.
+**The iterated artifact is always a spec** (requirements / design / plan / PRD — any domain). There are
+three ways in, all converging on iterating one spec:
+- **TASK** → you draft a solution spec.
+- **CODE** → you draft a *change-spec*; the code is reference material, **not edited during the
+  debate** (it is applied afterwards, as a separate step, if you have access).
+- **EXISTING SPEC** → you take it as the artifact.
 
-**The goal is a better document, not a bigger one.** Optimize: close real gaps, cover the
-core scenarios, resolve contradictions, fix real risks, remove ambiguity, improve UX.
-Resist drift toward ever-more complexity across rounds — accept added complexity only when
-a real gap, risk, or important UX need justifies it.
-
-By default one invocation = one round, and the user decides when to run the next. If they
-explicitly ask for several rounds — a count ("run 3 rounds") or a stop condition ("until no
-significant findings remain") — run them in sequence in this invocation. Your job is to make each
-round's progress visible, not to silently decide how many to run. State persists in
-`.<filename>.debate-state.json` next to the document so each round continues instead of
-relitigating settled points.
+Each round, **both models independently propose improvements**; you **merge with veto** and apply the
+result to the spec. **Goal: a better spec, not a bigger one** — close real gaps, cover core scenarios,
+resolve contradictions, fix real risks, remove ambiguity; accept added complexity only when a real
+gap/risk/UX need justifies it. One invocation = one round; state persists in
+`.<filename>.debate-state.json` beside the spec so rounds don't relitigate settled points.
 
 ---
 
 ## Step 0 — Preconditions
-1. `command -v codex >/dev/null 2>&1 && echo FOUND || echo MISSING`. If MISSING, stop:
-   "Codex CLI not found. Install: `npm install -g @openai/codex`, then re-run." Then confirm it's
-   authenticated: `codex login status`; if it isn't logged in, stop and tell the user to run
-   `codex login`. Don't substitute another tool — the debate needs an *independent* second model.
-2. Parse reasoning effort from the invocation (`--high|--medium|--low|--xhigh`, `effort=…`,
-   or an unambiguous natural-language request like "maximum reasoning depth" → `xhigh`). Default `high`. `xhigh` is much slower — only on explicit request.
-3. Parse any round directive: an explicit count ("run 3 rounds") or a stop condition
-   ("until no significant findings remain"). A count is a maximum — stop early if a round
-   comes back clean. Default: one
-   round. Honor it in Step 7.
+1. `command -v codex >/dev/null 2>&1 && echo FOUND || echo MISSING`. If MISSING, stop: "Codex CLI not
+   found. Install: `npm install -g @openai/codex`, then re-run." Then confirm auth: `codex login status`;
+   if not logged in, stop and tell the user to run `codex login`. Don't substitute another tool — the
+   debate needs an *independent* second model.
+2. Parse reasoning effort (`--high|--medium|--low|--xhigh`, `effort=…`, or an unambiguous "maximum
+   reasoning depth" → `xhigh`). Default `high`; `xhigh` is much slower, only on explicit request.
+3. Parse a round directive (a count like "run 3 rounds", or "until no significant findings remain");
+   default one round. Parse a `thorough` request (enables cross-critique, Step 3c).
 
-## Step 1 — Resolve the target and its altitude
-Find the one document to work on, in priority order:
-1. Explicit path argument in the invocation.
-2. The document you wrote or edited earlier in *this* conversation (the common case). If the
-   plan/approach you and the user have been working out lives only in the conversation and not
-   yet in a file, write it to a markdown file first (e.g. `PLAN.md` in the working dir) — the
-   debate needs a target file to edit and to hold its `.debate-state.json`. Default to the
-   file even for a quick "consult Codex" ask whenever the subject may become a working
-   object — a plan, spec, rule, design decision, or sequence of steps someone will act on.
-   The file is cheap (you write it, not the user) and doubles as the auditable record of
-   exactly what was sent to Codex.
-3. Otherwise ask for the path — don't guess across the filesystem.
+## Step 1 — Pick the mode, then resolve the working spec
+First a **surface scope scan** — structure, size, number of files/components, whether the design is
+non-trivial. This is a *shallow look, not deep reading*: deep study **of the referenced material**
+happens inside the chosen mode (Step 3b), so you never pay for it twice. Then choose:
+- **prompt-only** — a bounded advisory question whose output is advice/a comparison the user applies
+  directly, with nothing worth iterating and the scan showing it closes in one pass.
+- **iterable spec (the main flow)** — breadth or complexity (several files/components or substantial
+  material; a design with several coupled decisions), or the user wants iteration / a written spec.
 
-**Prompt-only consult — the one exception.** A bounded advisory question whose output is just
-an opinion or comparison ("is this rule well designed?", "A or B, and why?"), with no working
-object to edit, may skip the file. If the invocation also asks for multiple rounds, it is not
-prompt-only — iteration is expected, so materialize and run a normal debate. Execution path:
-skip Step 2 (no state); in Step 3, replace the document template with a free-form prompt — a
-role line, the question, and the relevant conversation context (user statements verbatim; mark
-your own summaries as yours), with `<workdir>` = the current working directory; vet the
-response per Step 4; skip Steps 5 and 7. Report (instead of the Step 6 format): Codex's
-position, your own vetted take on it, and the prompt file's path so the user can audit exactly
-what was sent. A prompt-only consult is strictly ONE round — for any follow-up round or
-requested edit, materialize the subject into a markdown file first and seed
-`.debate-state.json` as round 1 by converting each vetted conclusion into a finding (verdict
-as you judged it; edit: "seeded into the initial document" or null), so the next round hands
-them to Codex as settled.
+State the chosen mode in one line. If a prompt-only consult turns out under-scoped mid-pass, finish
+that pass, then offer to escalate to an iterable-spec debate (don't abandon it half-done).
 
-Then **name the document's type and altitude**, because it governs every later judgment:
-- *requirements* → altitude is what & why, contracts, acceptance criteria;
-- *technical design / spec* → architecture, key mechanisms, data models, trade-offs;
-- *implementation plan* → concrete steps, file-level changes, sequencing, configs.
+**Prompt-only path (compact):** one Codex pass on the question — a free-form prompt (role line + the
+question + relevant conversation context: user statements verbatim, your summaries marked as yours),
+`<workdir>` = current dir. Vet the answer with the Step 4 lens. Report inline: Codex's position, your
+vetted take, the prompt-file path, and a one-line "sent to Codex" note (subject; refs/snippets;
+anything privacy-mode withheld). No state, no rounds. For any follow-up round or edit, materialize the
+subject into a spec file and seed `.<filename>.debate-state.json` as round 1 (each settled conclusion becomes a
+finding). Then continue below.
 
-State it in one line and read the file in full:
-> "Debating `path` (N lines) — implementation plan, critiquing at implementation altitude. Effort: high. Round: 2."
-
-If the type is ambiguous, make the call, state it, and proceed — the user will correct you.
+**Iterable spec — seed the artifact:**
+- Use the explicit path if given; else the spec you drafted/took earlier in *this* conversation; else
+  ask — don't guess across the filesystem. If the spec lives only in the conversation, write it to a
+  markdown file first (the debate needs a file to edit and to hold `.<filename>.debate-state.json`) —
+  a descriptive `<topic>-spec.md` beside the related material or in the working dir; state the path.
+- **TASK** → draft a solution spec. **CODE** → draft a change-spec. **EXISTING SPEC** → take the file.
+- **Minimal spec shape (quality gate)** — so the debate doesn't converge on something under-specified.
+  Every spec should conceptually carry: goal · non-goals · assumptions · constraints · acceptance
+  criteria · open questions · what material was studied and what was deliberately skipped (if any). A
+  **code change-spec** adds: changes by file/component · behavior preserved vs changed · risks/migrations
+  · acceptance checks/tests. Tiny tasks may compress this, but the fields are conceptually present. If
+  **material facts** are missing and would shape the spec, **ask the user before debating** — don't debate
+  a fabricated spec. You ensure this shape when *you* author (TASK/CODE). For a **given** spec it is NOT
+  a precondition — missing fields become debate findings, and you don't rewrite the input before
+  discussing it; but if the given input is essentially empty (a stub, not a real spec), treat it as a
+  TASK and draft.
+- **Name the spec type and altitude** — it governs every later judgment — and read the spec artifact in
+  full (distinct from deep-studying the referenced material, which is paced per Step 3b):
+  - *requirements* → what & why, contracts, acceptance criteria;
+  - *technical design / spec* → architecture, key mechanisms, data models, trade-offs;
+  - *implementation / change plan* → concrete steps, component-level changes, sequencing, configs.
+  > "Debating `path` (N lines) — design spec, design altitude. Effort: high. Round: 2."
+  If the type is ambiguous, make the call, state it, and proceed — the user will correct you.
 
 ## Step 2 — Load state
-Look for `.<filename>.debate-state.json` beside the document.
+Look for `.<filename>.debate-state.json` beside the spec.
 - Not found → round 1, fresh state.
-- Found → next round = `last_round + 1`. Collect prior `rejected` and `partial` findings
-  with their reasons; you'll hand them to Codex so it doesn't re-raise settled points.
-- Found but malformed JSON → repair it from its readable content first (the rounds and
-  findings are usually intact as text) — don't discard history.
+- Found → next round = `last_round + 1`. Collect prior `rejected` and `partial` findings (both
+  sources) with reasons; you'll hand them to Codex so it doesn't re-raise settled points.
+- Malformed JSON → repair from its readable content first (rounds/findings are usually intact as text);
+  don't discard history.
 
 Schema:
 ```json
-{"document": "path", "doc_type": "implementation plan",
- "rounds": [{"round": 1, "effort": "high", "findings": [
-   {"id": "R1-1", "title": "...", "severity": "critical|major|minor",
+{"spec": "path", "spec_type": "design spec",
+ "rounds": [{"round": 1, "effort": "high", "thorough": false, "findings": [
+   {"id": "R1-1", "source": "codex|own", "title": "...", "severity": "critical|major|minor",
     "verdict": "accepted|partial|rejected", "reason": "one line", "edit": "what changed or null"}]}]}
 ```
 
-## Step 3 — Run the Codex critique
-Codex is sandboxed and can't read files outside its workdir, so embed the full document in
-the prompt. Write this prompt to a temp file (verbatim doc avoids shell-escaping):
+## Step 3 — Gather independent proposals
+Both models independently propose improvements to the **round-start spec**. *Independence means only
+this:* Codex does **not** see your current-round proposal list (so it isn't anchored). It **does** get
+the shared context — the task statement, the spec itself, the relevant material, and the settled
+verdicts — because those are the artifact and prior decisions, not this round's proposals.
+
+**3a — Your proposals.** Independently list improvements at the spec's altitude: gaps, missing core
+scenarios, contradictions, blocking ambiguities, unaddressed risks, over-engineering, requirements
+unrealistic for the scale.
+
+**3b — Codex's proposals.** Write the prompt below to a temp file (verbatim avoids shell-escaping) and
+run the helper. Ask Codex for both fixes to what's written **and** what the spec misses given the task
+and material (alternatives, risks, uncovered requirements).
+
+> **Conveying the material.** If the referenced material lives on the **same filesystem Codex runs
+> on**, point to it by **precise path** and set `<workdir>` to its root (Codex reads it read-only — give
+> exact paths, don't invite open-ended exploration). If it's **remote, fetched out-of-band by a tool
+> Codex can't reach, or non-file**, **embed** the relevant excerpts verbatim in the prompt. The deep
+> study is yours (Step 1's scan was only surface): study the parts relevant to the task and **record in
+> the spec what you studied and what you skipped**. The subject doesn't change during the debate, so do
+> this deep study **once (round 1)**; later rounds need only targeted look-ups (verify a Codex claim or
+> cover something newly in scope), and the recorded facts carry forward in the spec. Codex is stateless,
+> so each round give it the **same curated slice** + the updated spec + settled verdicts; widen the slice
+> only when scope grows.
 
 ```
 IMPORTANT: Do NOT read or execute anything under ~/.claude/, ~/.agents/, .claude/skills/, or
 .claude/agents/ — those are AI-tooling files for a different agent and will waste your time.
 
-You are a rigorous senior engineer/architect reviewing a <DOC_TYPE> (altitude: <ALTITUDE>).
-Critique it AT THAT ALTITUDE and report only real problems:
-- gaps/holes; missing or under-specified core scenarios and important edge cases;
-- internal contradictions; ambiguities that would block correct implementation;
-- requirements that are unrealistic or under-justified for the stated scope/scale/constraints;
-- security and correctness risks.
-For each finding: short title, severity (critical/major/minor), the problem, a concrete fix.
-The goal is a better, not a bigger, document. Prefer the simplest change that closes the gap.
-Do NOT propose speculative features, gold-plating, or complexity beyond what the document's
-purpose and scale need — and flag existing over-engineering. Calibrate to the stated scale.
-If no serious problems remain at this altitude, say so plainly; do not manufacture nitpicks.
-End with a one-line readiness verdict for this document's purpose. Respond in the document's
-language. Group by section.
+You are a rigorous independent senior reviewer improving a <SPEC_TYPE> (altitude: <ALTITUDE>).
+Propose improvements AT THAT ALTITUDE — both fixes to what is written and what the spec MISSES
+relative to its goal and the material below: gaps and under-specified core scenarios, missing
+alternatives, unaddressed risks, internal contradictions, ambiguities that would block correct
+execution, requirements unrealistic for the stated scale, security/correctness issues.
+For each: short title, severity (critical/major/minor), the problem, a concrete fix. The goal is a
+better, not a bigger, spec — prefer the simplest change that closes the gap, flag over-engineering,
+calibrate to the stated scale, and do not manufacture nitpicks. If nothing serious remains at this
+altitude, say so plainly. End with a one-line readiness verdict. Respond in the spec's language.
+Group by section.
 
-<if state has settled findings:>
+<if settled findings:>
 Already settled in prior rounds — do NOT re-raise without a genuinely new argument:
 - "<title>" — <rejected|partial>: <reason>
 
-<if constraints or decisions from the conversation aren't reflected in the document yet:>
-Supplementary context from the working conversation (NOT part of the document; provenance marked):
+Task / context (NOT part of the spec; provenance marked):
 - [user, verbatim] "<...>"
 - [editor summary] <...>
-Distinguish findings grounded in the document itself from findings that depend on this context.
+Referenced material: <read-only at <workdir>: exact paths> OR <embedded below>.
 
-DOCUMENT:
+SPEC:
 ---
-<full verbatim document>
+<full verbatim spec>
 ---
 ```
 
-Run the helper via `bash`, resolving its path relative to this skill's own directory — the
-folder that contains this `SKILL.md` (the runtime shows it above as "Base directory for this
-skill", e.g. `~/.claude/skills/spec-debate`):
+Run the helper via `bash`, resolving its path relative to this skill's own directory (shown above as
+"Base directory for this skill", e.g. `~/.claude/skills/spec-debate`):
 `bash "<skill_dir>/scripts/run_codex_critique.sh" <prompt_file> <effort> <workdir>`
-- `<workdir>`: git repo root if the doc is inside one, else the doc's directory (lets Codex
-  read referenced source files, read-only).
-- Run it with the Claude Code Bash tool's `timeout` set to `300000` (ms). The helper refuses to start if another `codex exec` is running
-  (concurrent runs hang) — if so, inspect it with `ps -ax -o pid=,command= | grep '[c]odex exec'`
-  and wait for it to finish; kill it only if it's your own stray run. Never launch a second codex yourself.
-- On a normal run the output ends with `CODEX_EXIT:<n>`; if it's non-zero, the helper has already
-  printed codex's stderr inline above — read that and stop. If instead you see an `ERROR:` line and
-  no `CODEX_EXIT` (a preflight failure: codex/pgrep missing or pgrep failing, bad effort/workdir,
-  unreadable prompt), read that error and stop.
+- `<workdir>`: the material's repo/dir root when it's local to Codex (lets Codex read referenced files,
+  read-only); else the prompt file's dir.
+- Run it with the Bash tool's `timeout` set to `300000` (ms). The helper refuses to start if another
+  `codex exec` is running (concurrent runs hang) — inspect with
+  `ps -ax -o pid=,command= | grep '[c]odex exec'` and wait; kill only your own stray run. Never launch a
+  second codex yourself.
+- Output ends with `CODEX_EXIT:<n>`; if non-zero, the helper already printed codex's stderr inline —
+  read it and stop. An `ERROR:` line with no `CODEX_EXIT` is a preflight failure (codex/pgrep missing,
+  bad effort/workdir, unreadable prompt) — read it and stop.
 
-## Step 4 — Vet every finding (the core)
-Go through findings one at a time:
-1. **Verify it's real.** Re-read the cited section; if the finding rests on a checkable fact
-   (file, API, number, config), `grep`/read it. Reject misreads and invented referents.
-2. **Judge value at THIS document's altitude.** Accept if it closes a real gap, covers a
-   missing core scenario, fixes a real risk, removes a blocking ambiguity, or is an important
-   UX/clarity gain.
-3. **Reject or partially accept** if it's hallucinated, pitched at the wrong altitude for
-   this document (low-level mechanics in a requirements doc, or hand-waving in an
-   implementation plan), gold-plating with no real gap behind it, or contradicts an explicit
-   user decision or stated constraint. For partial, apply *your* better/simpler fix.
+**3c — Cross-critique (only with `thorough`).** Run ONE more Codex call: give Codex **your** proposal
+list (with the same context as 3b — spec, task, material) and ask, per item, agree / partial / reject +
+a one-line argument — so your merge also sees Codex's
+rebuttal of *your own* proposals. (Your review of Codex's proposals is the merge itself, Step 4 — no
+extra call for that.) Use thorough for complex or contested specs; skip it otherwise.
 
-Record verdict + a one-line reason for each. Don't rubber-stamp (accepting nearly everything
-means you're not vetting) and don't reject good findings to look independent. The bar is
-"does this optimize the document at its altitude" — not "is it more thorough."
+## Step 4 — Merge with veto (the core)
+**You are always the merger** — Codex is read-only and has less context, and blind-applying its output
+would break the veto. Put **both lists** — Codex's and your own from 3a — through ONE procedure, item by
+item:
+1. **Verify it's real.** Re-read the cited part; if it rests on a checkable fact, check it. Reject
+   misreads and invented referents.
+2. **Judge at the spec's altitude**, weighted by **impact × likelihood-of-trigger × altitude** —
+   discount real-but-practically-unreachable points, but don't kill a plausible edge case.
+3. **Decide:** accept / partial (apply *your* better, simpler fix) / reject — with a one-line reason.
 
-## Step 5 — Apply
-Apply accepted/partial findings with precise, in-voice `Edit`s. Keep them surgical; prefer
-the change that closes the gap with the least added complexity. Integrate coherently when two
-findings touch the same place. Then **re-read the edited sections together for self-consistency**:
-an edit that resolves one finding often introduces a new contradiction elsewhere (a changed
-contract, a now-stale reference, two options left open) — and that becomes next round's finding.
-Catching it here is what makes the debate converge instead of churn. Don't leave two alternatives
-"to decide later"; make the call now.
+Record **rejected items from your OWN list too** — that symmetric audit is what guards against your
+self-bias, since the merger never rotates. Don't rubber-stamp, and don't reject good points to look
+independent. Consolidate into ONE edit set; integrate coherently where points overlap.
+
+## Step 5 — Apply to the spec
+Apply accepted/partial items as precise, in-voice `Edit`s — the least added complexity that closes each
+gap. Then **re-read the edited sections together for self-consistency**: an edit that resolves one point
+often introduces a new contradiction (a changed contract, a now-stale reference, two options left open),
+and that becomes next round's finding — catching it here is what makes the debate converge instead of
+churn. Don't leave alternatives "to decide later"; make the call now.
 
 ## Step 6 — Report (make progress visible)
-Use this skimmable format:
 ```
-## spec-debate — round N (<effort>) · `path`  ·  codex raised M findings
-### Accepted (K)
-- [critical] <title> — what changed
-### Partial (P)
-- [major] <title> — applied Y instead of X because <reason>
-### Rejected (R)
-- [minor] <title> — <reason>
+## spec-debate — round N (<effort>) · `path` · M proposals (codex K · own J)
+### Accepted (…)
+- [critical] <title> — what changed · (codex|own)
+### Partial (…)
+- [major] <title> — applied Y instead of X because <reason> · (codex|own)
+### Rejected (…)
+- [minor] <title> — <reason> · (codex|own)
 ### Where it stands
-- Open gaps still worth a round, or "no significant gaps remain at this altitude".
-- Progress so far (findings per round, from state): e.g. "r1: 12 · r2: 5".
+- Open gaps worth a round, or "no significant gaps remain at this altitude".
+- Convergence: recommend STOP, or what a next round would target (see Step 7).
+- Progress: r1: 12 · r2: 5.
 ```
-One-line reasons. Don't recommend whether to stop or continue — show the state; the user decides
-(in an explicit multi-round run, keep going per their directive).
 
 ## Step 7 — Persist, then continue or end
-Append this round (number, effort, findings with verdicts/reasons/edits) to
-`.<filename>.debate-state.json`. Rewrite the file as one complete JSON document — don't
-string-append a new round after the closing brackets — and verify it parses
-(`python3 -c 'import json,sys; json.load(open(sys.argv[1]))' <file>`); a malformed state
-file silently breaks every later round. Then:
-- **If the user asked for multiple rounds** (a count from Step 0, or "until no significant
-  findings remain") — run the next round now. Before each subsequent round, re-read the updated
-  document in full and gather **all** settled findings from state (including the round just
-  appended) to hand to Codex, then repeat Steps 3–6 and append as round N+1. Stop at the first of:
-  - you reach the requested count (a bare count is a maximum — stop early if a round is clean);
-  - a round yields no accepted/partial finding of **major or higher** severity — nothing
-    *significant* is left, and minor polish doesn't justify another round (apply the minor fixes, then stop);
-  - a hard cap of **5 rounds** when no explicit count was given — stop and report that actionable
-    findings may still remain.
-  Report each round as you go.
-- **Otherwise** — stop after this one round and tell the user they can invoke the skill again to
-  continue from round N+1.
+Append this round (number, effort, thorough, findings with source/verdict/reason/edit) to
+`.<filename>.debate-state.json`. Rewrite the file as one complete JSON document (don't string-append a
+round after the closing brackets) and verify it parses
+(`python3 -c 'import json,sys; json.load(open(sys.argv[1]))' <file>`) — a malformed state file silently
+breaks every later round.
 
-Don't loop unless the user asked for more than one round — a bare invocation is exactly one round.
+**Convergence criterion:** if the round landed **no material edit** (only cosmetic/wording) OR only
+**minor** proposals remain → explicitly **recommend STOP**. Then:
+- **If the user explicitly asked for several rounds in this invocation** — run the next now: re-read the
+  updated spec in full, gather ALL settled verdicts (incl. the round just appended), repeat Steps 3–6.
+  Stop at the first of: the requested count (a maximum — stop early if a round is clean); a round with no
+  accepted/partial finding of **major or higher** severity; a hard cap of **5 rounds** if the directive is
+  open-ended ("until no significant findings remain"). Report each round.
+- **Otherwise** — stop after this round and tell the user they can invoke again to continue from round
+  N+1. Don't loop on a bare invocation.
+
+## Code change-specs — three extra rules (only when the subject is code)
+- **Anchoring.** A change-spec encodes *your* plan, so Codex critiquing it is partly anchored. Default:
+  accept that — in 3b, ask Codex to hunt for gaps, missing alternatives, and risks rather than
+  rubber-stamp. Escalate only for high-impact / ambiguous / sensitive work: in round 1, run Codex as an
+  **independent** analysis of the code + task *without* your draft, then fold both into the change-spec;
+  later rounds critique the spec.
+- **Re-ground each round.** A change-spec can drift into debating only its own text. Every round, re-check
+  the round-start spec against the user's task and the relevant code facts — deep in round 1, targeted
+  afterwards (the subject is static). Keep the studied/skipped areas and key facts *in the change-spec* so
+  they carry across rounds; widen the slice only when scope grows.
+- **Debate → implementation boundary.** Applying the change-spec to code is a **post-debate execution
+  step, not part of the loop** — "the spec converged" ≠ "the code works", so the change-spec carries
+  acceptance checks/tests. At convergence, if you have edit access, offer to apply it now; if you do, run
+  a normal engineering loop (edit → run tests/checks → report) and report **implementation results
+  separately from debate verdicts**. Otherwise: stop / another round.
 
 ---
 
 ## Guardrails
-- **Privacy** — the full document (and any in-workdir files Codex reads) is sent to OpenAI via the Codex CLI. Don't run spec-debate on material you can't share with OpenAI; if the target looks sensitive (secrets, client/NDA data), warn the user before running.
-- **One codex at a time** — the helper enforces it; respect it.
-- **Codex never edits files** — it's read-only and only critiques; all edits are yours, after vetting.
-- **Don't fabricate consensus** — when you reject Codex's point, say so with your reason; the user can overrule you.
-- **Optimize, don't accrete** — every round should leave the document tighter and more complete, not just longer.
+- **Privacy** — *default: unrestricted.* The spec and any referenced material are sent to OpenAI via the
+  Codex CLI. **Privacy-mode** is an explicit opt-in ("privacy mode" / "don't send the code"): then send
+  Codex only an approved abstracted summary (and mark its confidence as limited), or decline the Codex
+  pass if the question can't be judged without the material. Never embed obvious secrets.
+- **One codex at a time** — the helper enforces it; never launch a second yourself.
+- **Codex never edits files** — it's read-only and only proposes; all edits are yours, after vetting.
+- **Don't fabricate consensus** — when you reject a point, say so with your reason; the user can overrule.
+- **Optimize, don't accrete** — every round leaves the spec tighter and more complete, not just longer.

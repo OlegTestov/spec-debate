@@ -2,24 +2,30 @@
 
 # spec-debate — a two-model debate over your plan, spec, or proposed solution
 
-A skill for **Claude Code**. Once you've written a plan, spec, requirements doc, or technical
-design, you run `/spec-debate`, and a **second model (OpenAI Codex)** starts tearing into it,
-while Claude acts as the **editor with veto power**: it carefully verifies every objection,
-applies only what genuinely improves it, and rejects the rest with a reason.
+A skill for **Claude Code**. Each round, **two models independently propose improvements** — Claude
+and a **second model (OpenAI Codex)** — and Claude acts as the **editor with veto power**: it verifies
+every proposal (its own and Codex's), keeps only what genuinely improves the work, and rejects the rest
+with a reason.
 
-It's not only for finished specs: you can "consult Codex" mid-flight — the skill runs one round
-and hands back an independent review with no state saved. If you decide to keep working with
-Codex, it automatically creates the iterations file and switches to standard debate mode.
+The thing being improved is **always a spec**, and there are three ways in:
+
+- **a task** → Claude drafts a solution spec, then debates it;
+- **code to improve** → Claude drafts a *change-spec*; the code itself isn't touched during the debate —
+  it's applied afterwards, as a separate step;
+- **an existing spec / plan / design** → it's taken as-is.
+
+You can also just "consult Codex" on a bounded question mid-flight — the skill runs a single
+**prompt-only** pass and hands back an independent take, vetted by Claude, with no state saved. If you
+decide to keep going, it materializes the spec file and switches to standard debate mode.
 
 > A critic that's always obeyed is just a second author.
 > A critic that's argued with produces a better result than either model alone.
 
-By default, one invocation = one round: critique → veto → edits → report → saved state
-(`.<name>.debate-state.json` next to the document). Need several rounds? Invoke again (it
-continues where it left off), or just ask up front — "run 3 rounds" or "keep going until no
-significant findings remain". Rejected findings are handed to Codex so it doesn't raise them
-again. The built-in principle: a **better** result, not a **bigger** one — the skill actively
-resists complexity creep.
+By default, one invocation = one round: propose → veto → edits → report → saved state
+(`.<name>.debate-state.json` next to the document). Need several rounds? Invoke again (it continues
+where it left off), or ask up front — "run 3 rounds" or "keep going until no significant findings
+remain". Settled findings are handed to Codex so it doesn't raise them again. The built-in principle:
+a **better** result, not a **bigger** one — the skill actively resists complexity creep.
 
 ## Requirements
 
@@ -37,9 +43,11 @@ resists complexity creep.
 
 ## Data & privacy
 
-spec-debate sends the **full text of the document** (and any files Codex reads in the workdir) to
-OpenAI via the Codex CLI. Don't run it on material you can't share with OpenAI — secrets,
-client/NDA data.
+By default spec-debate sends the **full text of the spec** (plus any files Codex reads in the workdir)
+to OpenAI via the Codex CLI. For sensitive material, opt into **privacy mode** ("privacy mode" /
+"don't send the code"): Codex then gets only an approved abstracted summary — its confidence marked
+limited — or the pass is declined if the question can't be judged without the material. Don't put
+secrets in the spec, and don't run the default mode on data you can't share with OpenAI.
 
 ## Install
 
@@ -87,15 +95,20 @@ remain".
 
 ## How it works (in brief)
 
-1. Finds the document and names its **type and altitude** (requirements / design / plan) — this sets the bar for the critique.
-2. Runs Codex as a "relentless reviewer" strictly at that altitude (the helper script
-   `run_codex_critique.sh` feeds the prompt via stdin — the document never lands on argv — and
-   refuses to start a second `codex exec`: concurrent runs hang).
-3. **Vets every finding**: checks that it's real (re-reads the section, `grep`s any referenced
-   files/numbers) and judges its value at the document's altitude. Accept / partial / reject —
-   each with a one-line reason.
-4. Applies surgical edits, then re-reads the changed sections for self-consistency.
-5. Writes a skimmable report (accepted / partial / rejected) and saves the round's state.
+1. **Picks the mode and resolves the spec.** A quick scope scan decides between a one-pass *prompt-only*
+   consult and an *iterable spec*; for a task or code, Claude first drafts the spec / change-spec to a
+   minimal shape (goal, non-goals, constraints, acceptance criteria, …) and names its **type and altitude**.
+2. **Both models propose, independently.** Claude lists its own improvements; Codex proposes its own
+   without seeing Claude's list (so it isn't anchored). The helper `run_codex_critique.sh` feeds the
+   prompt via stdin — the document never lands on argv — and refuses to start a second `codex exec`
+   (concurrent runs hang). *(Optional `thorough`: one extra pass where Codex also rebuts Claude's list.)*
+3. **Merges with veto.** Both lists — Codex's and Claude's own — go through one procedure: check each is
+   real (re-read the section, `grep` referenced files/numbers), judge its value at the spec's altitude,
+   then accept / partial / reject with a one-line reason (rejected own proposals are reported too).
+4. **Applies surgical edits**, then re-reads the changed sections for self-consistency.
+5. **Reports** (accepted / partial / rejected) and **saves state**, recommending STOP once only minor
+   findings remain. For a code change-spec, applying it to the code is a separate post-debate step,
+   reported apart from the debate.
 
 ## License
 
