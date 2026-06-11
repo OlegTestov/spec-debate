@@ -43,7 +43,7 @@ gap/risk/UX need justifies it. One invocation = one round; state persists in
 2. Parse reasoning effort (`--high|--medium|--low|--xhigh`, `effort=…`, or an unambiguous "maximum
    reasoning depth" → `xhigh`). Default `high`; `xhigh` is much slower, only on explicit request.
 3. Parse a round directive (a count like "run 3 rounds", or "until no significant findings remain");
-   default one round. Parse a `thorough` request (enables cross-critique, Step 3c).
+   default one round. Parse a `thorough` request (cross-critique, Step 3c).
 
 ## Step 1 — Pick the mode, then resolve the working spec
 First a **surface scope scan** — structure, size, number of files/components, whether the design is
@@ -100,7 +100,7 @@ Look for `.<filename>.debate-state.json` beside the spec.
 Schema:
 ```json
 {"spec": "path", "spec_type": "design spec",
- "rounds": [{"round": 1, "effort": "high", "thorough": false, "findings": [
+ "rounds": [{"round": 1, "effort": "high", "cross_critique": false, "findings": [
    {"id": "R1-1", "source": "codex|own", "title": "...", "severity": "critical|major|minor",
     "verdict": "accepted|partial|rejected", "reason": "one line", "edit": "what changed or null"}]}]}
 ```
@@ -129,6 +129,12 @@ and material (alternatives, risks, uncovered requirements).
 > cover something newly in scope), and the recorded facts carry forward in the spec. Codex is stateless,
 > so each round give it the **same curated slice** + the updated spec + settled verdicts; widen the slice
 > only when scope grows.
+>
+> **The spec itself** is embedded verbatim by default — that preserves an exact round-start audit trail.
+> For a spec file inside `<workdir>` large enough that re-embedding it every round is materially wasteful
+> (as a guide: several hundred lines+), you may replace the template's SPEC block with
+> `SPEC FILE: <exact path> (<N lines>)` plus: "Read this file IN FULL before critiquing; do not critique
+> from a skim or excerpt."
 
 ```
 IMPORTANT: Do NOT read or execute anything under ~/.claude/, ~/.agents/, .claude/skills/, or
@@ -156,7 +162,7 @@ Referenced material: <read-only at <workdir>: exact paths> OR <embedded below>.
 
 SPEC:
 ---
-<full verbatim spec>
+<full verbatim spec — or the SPEC FILE reference per "Conveying the material">
 ---
 ```
 
@@ -166,18 +172,18 @@ Run the helper via `bash`, resolving its path relative to this skill's own direc
 - `<workdir>`: the material's repo/dir root when it's local to Codex (lets Codex read referenced files,
   read-only); else the prompt file's dir.
 - Run it with the Bash tool's `timeout` set to `300000` (ms). The helper refuses to start if another
-  `codex exec` is running (concurrent runs hang) — inspect with
-  `ps -ax -o pid=,command= | grep '[c]odex exec'` and wait; kill only your own stray run. Never launch a
-  second codex yourself.
+  `codex exec` is running (concurrent runs hang) — its error message tells you how to inspect and wait.
 - Output ends with `CODEX_EXIT:<n>`; if non-zero, the helper already printed codex's stderr inline —
   read it and stop. An `ERROR:` line with no `CODEX_EXIT` is a preflight failure (codex/pgrep missing,
   bad effort/workdir, unreadable prompt) — read it and stop.
 
-**3c — Cross-critique (only with `thorough`).** Run ONE more Codex call: give Codex **your** proposal
+**3c — Cross-critique (thorough or own major+).** Run ONE more Codex call: give Codex **your** proposal
 list (with the same context as 3b — spec, task, material) and ask, per item, agree / partial / reject +
 a one-line argument — so your merge also sees Codex's
 rebuttal of *your own* proposals. (Your review of Codex's proposals is the merge itself, Step 4 — no
-extra call for that.) Use thorough for complex or contested specs; skip it otherwise.
+extra call for that.) Run 3c when the user asked for `thorough` — honor that unconditionally — or when
+your own 3a list contains any major+ proposal: without 3c, only Codex's list gets second-model scrutiny.
+Skip it otherwise.
 
 ## Step 4 — Merge with veto (the core)
 **You are always the merger** — Codex is read-only and has less context, and blind-applying its output
@@ -216,7 +222,7 @@ churn. Don't leave alternatives "to decide later"; make the call now.
 ```
 
 ## Step 7 — Persist, then continue or end
-Append this round (number, effort, thorough, findings with source/verdict/reason/edit) to
+Append this round (number, effort, cross_critique, findings with source/verdict/reason/edit) to
 `.<filename>.debate-state.json`. Rewrite the file as one complete JSON document (don't string-append a
 round after the closing brackets) and verify it parses
 (`python3 -c 'import json,sys; json.load(open(sys.argv[1]))' <file>`) — a malformed state file silently
@@ -232,6 +238,12 @@ breaks every later round.
 - **Otherwise** — stop after this round and tell the user they can invoke again to continue from round
   N+1. Don't loop on a bare invocation.
 
+**User-resolvable blockers mid-loop.** If a round surfaces a question only the user can answer and the
+answer would materially reshape the spec (the Step 1 "don't debate a fabricated spec" bar — not a
+routine open question), finish the current round, report, then pause the loop early and ask — even if
+more rounds were requested. Apply the user's answers as **editor edits** (not as debate findings) before
+the next round's gathering. Lesser questions go into the spec's open questions and the loop continues.
+
 ## Code change-specs — three extra rules (only when the subject is code)
 - **Anchoring.** A change-spec encodes *your* plan, so Codex critiquing it is partly anchored. Default:
   accept that — in 3b, ask Codex to hunt for gaps, missing alternatives, and risks rather than
@@ -239,9 +251,8 @@ breaks every later round.
   **independent** analysis of the code + task *without* your draft, then fold both into the change-spec;
   later rounds critique the spec.
 - **Re-ground each round.** A change-spec can drift into debating only its own text. Every round, re-check
-  the round-start spec against the user's task and the relevant code facts — deep in round 1, targeted
-  afterwards (the subject is static). Keep the studied/skipped areas and key facts *in the change-spec* so
-  they carry across rounds; widen the slice only when scope grows.
+  the round-start spec against the user's task and the relevant code facts (pacing per 3b); keep the
+  studied/skipped areas and key facts *in the change-spec* so they carry across rounds.
 - **Debate → implementation boundary.** Applying the change-spec to code is a **post-debate execution
   step, not part of the loop** — "the spec converged" ≠ "the code works", so the change-spec carries
   acceptance checks/tests. At convergence, if you have edit access, offer to apply it now; if you do, run
@@ -258,4 +269,3 @@ breaks every later round.
 - **One codex at a time** — the helper enforces it; never launch a second yourself.
 - **Codex never edits files** — it's read-only and only proposes; all edits are yours, after vetting.
 - **Don't fabricate consensus** — when you reject a point, say so with your reason; the user can overrule.
-- **Optimize, don't accrete** — every round leaves the spec tighter and more complete, not just longer.

@@ -101,7 +101,8 @@ remain".
 2. **Both models propose, independently.** Claude lists its own improvements; Codex proposes its own
    without seeing Claude's list (so it isn't anchored). The helper `run_codex_critique.sh` feeds the
    prompt via stdin — the document never lands on argv — and refuses to start a second `codex exec`
-   (concurrent runs hang). *(Optional `thorough`: one extra pass where Codex also rebuts Claude's list.)*
+   (concurrent runs hang). *(One extra pass where Codex also rebuts Claude's list — on request
+   (`thorough`) or automatically when Claude's own proposals carry major weight.)*
 3. **Merges with veto.** Both lists — Codex's and Claude's own — go through one procedure: check each is
    real (re-read the section, `grep` referenced files/numbers), judge its value at the spec's altitude,
    then accept / partial / reject with a one-line reason (rejected own proposals are reported too).

@@ -2,7 +2,8 @@
 # run_codex_critique.sh — run a single OpenAI Codex critique pass, robustly.
 #
 # Usage: run_codex_critique.sh <prompt_file> [effort] [workdir]
-#   prompt_file : path to a file containing the full prompt (spec embedded inside)
+#   prompt_file : path to a file containing the full prompt (spec embedded inside,
+#                 or referenced by exact in-workdir path with a read-in-full instruction)
 #   effort      : model_reasoning_effort — high (default) | medium | low | xhigh
 #   workdir     : sandbox root for codex (-C). Defaults to the prompt file's dir.
 #
@@ -10,8 +11,10 @@
 #   - Concurrent `codex exec` processes HANG (observed empirically). We refuse to
 #     start a second one rather than deadlock. One debate = one codex at a time.
 #   - codex is sandboxed to -C and CANNOT read files outside it, so the caller
-#     must embed the full spec text in the prompt file. workdir only matters if the
-#     spec references in-repo source files codex may want to read (read-only).
+#     must embed the full spec text in the prompt file — or, when the spec file
+#     itself lives inside -C, reference it by exact path with a read-in-full
+#     instruction. workdir matters when codex must read the spec or other
+#     referenced files (read-only).
 #
 # Output: on a normal run, codex's stdout (the critique) then a final line "CODEX_EXIT:<n>";
 #         codex's stderr goes to a private mktemp file, is printed inline (to this script's
