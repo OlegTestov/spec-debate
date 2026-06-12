@@ -4,21 +4,41 @@
   "evals": [
     {
       "id": 1,
-      "prompt": "Я только что дописал ТЗ на внутренний сервис коротких ссылок (/tmp/spec-debate-test/url-shortener-spec.md). Прогони его через дебат с codex и улучши.",
+      "prompt": "I've just finished the spec for an internal URL-shortener service (/tmp/spec-debate-test/url-shortener-spec.md). Run it through a debate with codex and improve it.",
       "expected_output": "Round 1: Claude and codex each independently propose improvements (codex does not see Claude's current-round list); Claude merges both lists with veto (verifying against the actual file, not blindly), applies accepted ones via Edit, writes a skimmable report (accepted/partial/rejected with one-line reasons and source codex|own — rejected own proposals included), and creates .url-shortener-spec.md.debate-state.json with round 1 recorded.",
-      "files": ["/tmp/spec-debate-test/url-shortener-spec.md"]
+      "files": ["/tmp/spec-debate-test/url-shortener-spec.md"],
+      "expectations": [
+        "A Codex critique ran via scripts/run_codex_critique.sh (exactly one codex exec at a time)",
+        "Claude listed its own proposals independently, and they went through the same verdict procedure as Codex's",
+        "Every finding received accepted/partial/rejected with a one-line reason; Claude's own proposals went through the same vetting (rejected own proposals are reported whenever they occur)",
+        "Accepted/partial edits were applied to the spec file via Edit, in the spec's voice",
+        ".url-shortener-spec.md.debate-state.json was created beside the spec and parses as a single valid JSON document with round 1 recorded"
+      ]
     },
     {
       "id": 2,
-      "prompt": "Сделай ещё одну итерацию улучшений ТЗ.",
+      "prompt": "Do one more iteration of improvements on the spec.",
       "expected_output": "Round 2: skill reads the existing .url-shortener-spec.md.debate-state.json, sets round=2, passes settled (rejected/partial) verdicts to codex so they are not re-raised, gathers fresh proposals from both models, merges with veto, applies accepted edits, reports with convergence status, and appends round 2 to the state file.",
-      "files": ["/tmp/spec-debate-test/url-shortener-spec.md"]
+      "files": ["/tmp/spec-debate-test/url-shortener-spec.md"],
+      "expectations": [
+        "The existing debate-state file was loaded and the new round numbered 2",
+        "Settled rejected/partial verdicts from round 1 were passed to Codex as not-to-re-raise",
+        "Fresh proposals were gathered from both models and merged with veto",
+        "The report includes a convergence assessment (recommend STOP or what a next round would target)",
+        "Round 2 was appended and the state file still parses as one valid JSON document"
+      ]
     },
     {
       "id": 3,
       "prompt": "let codex stress-test this design doc with maximum reasoning depth",
-      "expected_output": "Skill triggers, resolves the spec from context, parses 'maximum reasoning depth' as xhigh, runs codex at xhigh, and completes a debate round. Tests effort-argument parsing and trigger on English phrasing without the word 'debate'.",
-      "files": []
+      "expected_output": "Skill triggers, resolves the spec from context, parses 'maximum reasoning depth' as xhigh, runs codex at xhigh, and completes a debate round. Tests effort-argument parsing and triggering on casual phrasing without the word 'debate'.",
+      "files": [],
+      "expectations": [
+        "The skill triggered without the word 'debate' in the prompt",
+        "'maximum reasoning depth' was parsed as effort xhigh and passed to the helper",
+        "The spec was resolved from the conversation context rather than guessed from the filesystem",
+        "A full debate round completed with the merge-with-veto report"
+      ]
     }
   ]
 }

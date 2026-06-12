@@ -77,10 +77,8 @@ spec-debate/
 ├── LICENSE
 ├── scripts/
 │   └── run_codex_critique.sh
-├── evals/
-│   └── evals.json
-└── docs/
-    └── rework-plan.md
+└── evals/
+    └── evals.json
 ```
 
 ## Usage
