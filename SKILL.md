@@ -166,13 +166,18 @@ SPEC:
 ---
 ```
 
-Run the helper via `bash`, resolving its path relative to this skill's own directory (shown above as
-"Base directory for this skill", e.g. `~/.claude/skills/spec-debate`):
+Run the helper via `bash`. Resolve `<skill_dir>` from the injected "Base directory for this skill:
+<abs path>" line for THIS invocation — do not copy or hardcode an example path: the active install may
+be under user settings (`~/.claude/skills/…`), a plugin install, or a versioned plugin cache, and the
+path differs in each.
 `bash "<skill_dir>/scripts/run_codex_critique.sh" <prompt_file> <effort> <workdir>`
+If the helper isn't found there, treat the install as broken — stop and report it; do not fall back to
+a guessed or remembered path.
 - `<workdir>`: the material's repo/dir root when it's local to Codex (lets Codex read referenced files,
   read-only); else the prompt file's dir.
-- Run it with the Bash tool's `timeout` set to `300000` (ms). The helper refuses to start if another
-  `codex exec` is running (concurrent runs hang) — its error message tells you how to inspect and wait.
+- Run it with the Bash tool's `timeout` set to `300000` (ms). The helper allows one `codex exec` at a
+  time: it briefly waits for a just-finished codex to clear, then refuses (exit 3) only if one is
+  genuinely still running — its error message tells you how to inspect and wait.
 - Output ends with `CODEX_EXIT:<n>`; if non-zero, the helper already printed codex's stderr inline —
   read it and stop. An `ERROR:` line with no `CODEX_EXIT` is a preflight failure (codex/pgrep missing,
   bad effort/workdir, unreadable prompt) — read it and stop.

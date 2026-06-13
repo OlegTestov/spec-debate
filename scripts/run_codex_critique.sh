@@ -8,8 +8,11 @@
 #   workdir     : sandbox root for codex (-C). Defaults to the prompt file's dir.
 #
 # Why this script exists:
-#   - Concurrent `codex exec` processes HANG (observed empirically). We refuse to
-#     start a second one rather than deadlock. One debate = one codex at a time.
+#   - One `codex exec` at a time. The original deadlock came from passing the doc on
+#     argv with an open, idle stdin (see the invocation note below); that is fixed by
+#     feeding the prompt via stdin with EOF. The guard is kept as cheap defense-in-depth,
+#     and it tolerates a just-finished codex still tearing down by polling briefly before
+#     refusing — a genuinely concurrent run still blocks.
 #   - codex is sandboxed to -C and CANNOT read files outside it, so the caller
 #     must embed the full spec text in the prompt file — or, when the spec file
 #     itself lives inside -C, reference it by exact path with a read-in-full
@@ -51,21 +54,35 @@ fi
 # mentions the string (an editor, a `ps|grep`, a `claude -p …` agent carrying a summary about this very
 # skill); the bounded form excludes those — though a prose mention containing a real `/path/codex exec`
 # can still match. pgrep -f matches the raw argv, so the boundaries work there.
-# Distinguish pgrep's exit codes: 0 = a match (block), 1 = no match (proceed), anything else = pgrep
-# itself failed (e.g. cannot read the process list) → fail closed rather than run unguarded.
-pgrep_status=0
-pgrep -u "$(id -u)" -f '(^|/)codex([^/[:space:]]*)? exec([[:space:]]|$)' >/dev/null 2>&1 || pgrep_status=$?
-case "$pgrep_status" in
+# Distinguish pgrep's exit codes: 0 = a match (a codex exec is running), 1 = no match,
+# anything else = pgrep itself failed (e.g. cannot read the process list) → fail closed.
+codex_exec_running() {  # 0 = one is running, 1 = none, 2 = pgrep failed
+  local s=0
+  pgrep -u "$(id -u)" -f '(^|/)codex([^/[:space:]]*)? exec([[:space:]]|$)' >/dev/null 2>&1 || s=$?
+  case "$s" in 0) return 0 ;; 1) return 1 ;; *) return 2 ;; esac
+}
+
+# A match may be the PRIOR step's codex still tearing down rather than a genuine concurrent
+# run (e.g. critique → cross-critique back-to-back). Poll up to ~5s for it to clear before
+# refusing, so a transient teardown overlap doesn't spuriously block the run.
+codex_exec_running; guard_rc=$?
+guard_polls=0
+while [ "$guard_rc" -eq 0 ] && [ "$guard_polls" -lt 10 ]; do
+  sleep 0.5
+  guard_polls=$((guard_polls + 1))
+  codex_exec_running; guard_rc=$?
+done
+case "$guard_rc" in
   0)
-    echo "ERROR: another 'codex exec' is already running for this user. Concurrent codex runs hang." >&2
+    echo "ERROR: another 'codex exec' is still running for this user after ~5s. Concurrent codex runs can hang." >&2
     # The inspection hint is a LOOSE substring on purpose: `ps` prefixes each line with the PID, so the
     # bounded guard pattern misses the bare `<pid> codex exec` form in ps output. A human reading the
     # result can tell a real codex from a process that merely mentions the string, so loose is right here.
     echo "       Inspect it with: ps -ax -o pid=,command= | grep '[c]odex exec'  (kill it only if it's your own stray run)." >&2
     exit 3 ;;
-  1) ;;  # no concurrent codex — proceed
+  1) ;;  # clear (or cleared during the poll) — proceed
   *)
-    echo "ERROR: pgrep failed (exit $pgrep_status); cannot enforce one-codex-at-a-time (fail-closed)." >&2
+    echo "ERROR: pgrep failed; cannot enforce one-codex-at-a-time (fail-closed)." >&2
     exit 7 ;;
 esac
 

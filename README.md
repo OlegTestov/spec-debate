@@ -100,8 +100,7 @@ remain".
    minimal shape (goal, non-goals, constraints, acceptance criteria, …) and names its **type and altitude**.
 2. **Both models propose, independently.** Claude lists its own improvements; Codex proposes its own
    without seeing Claude's list (so it isn't anchored). The helper `run_codex_critique.sh` feeds the
-   prompt via stdin — the document never lands on argv — and refuses to start a second `codex exec`
-   (concurrent runs hang). *(One extra pass where Codex also rebuts Claude's list — on request
+   prompt via stdin — the document never lands on argv — and runs one `codex exec` at a time. *(One extra pass where Codex also rebuts Claude's list — on request
    (`thorough`) or automatically when Claude's own proposals carry major weight.)*
 3. **Merges with veto.** Both lists — Codex's and Claude's own — go through one procedure: check each is
    real (re-read the section, `grep` referenced files/numbers), judge its value at the spec's altitude,
