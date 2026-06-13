@@ -166,7 +166,7 @@ SPEC:
 ---
 ```
 
-Run the helper via `bash`. Resolve `<skill_dir>` from the injected "Base directory for this skill:
+Resolve `<skill_dir>` from the injected "Base directory for this skill:
 <abs path>" line for THIS invocation — do not copy or hardcode an example path: the active install may
 be under user settings (`~/.claude/skills/…`), a plugin install, or a versioned plugin cache, and the
 path differs in each.
