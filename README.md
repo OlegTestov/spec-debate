@@ -7,12 +7,13 @@ and a **second model (OpenAI Codex)** — and Claude acts as the **editor with v
 every proposal (its own and Codex's), keeps only what genuinely improves the work, and rejects the rest
 with a reason.
 
-The thing being improved is **always a spec**, and there are three ways in:
+The thing being improved is **always a spec**, and there are four ways in:
 
 - **a task** → Claude drafts a solution spec, then debates it;
 - **code to improve** → Claude drafts a *change-spec*; the code itself isn't touched during the debate —
   it's applied afterwards, as a separate step;
-- **an existing spec / plan / design** → it's taken as-is.
+- **an existing spec / plan / design** → it's taken as-is;
+- **an idea / claim / thesis** → Claude drafts a short position-spec (a bounded one-pass version stays prompt-only, no file).
 
 You can also just "consult Codex" on a bounded question mid-flight — the skill runs a single
 **prompt-only** pass and hands back an independent take, vetted by Claude, with no state saved. If you
@@ -51,23 +52,19 @@ secrets in the spec, and don't run the default mode on data you can't share with
 
 ## Install
 
-The simplest way — if your Claude Code can run shell commands — is to ask it to install the skill:
+This skill ships in the **`agentic-tools`** plugin in the **`omd-plugins`** marketplace. Inside Claude Code,
+add the marketplace once, then install the plugin:
 
-> Install https://github.com/OlegTestov/spec-debate into ~/.claude/skills/spec-debate
-
-It'll clone the repo into your skills folder. If that doesn't work, clone it manually:
-
-```bash
-git clone https://github.com/OlegTestov/spec-debate ~/.claude/skills/spec-debate
+```
+/plugin marketplace add git@gitlab.sol.onetick.com:solutions/ml-ops/ai-plugins.git
+/plugin install agentic-tools@omd-plugins
 ```
 
-The skill folder can live in either of:
+The skill is then available as `/spec-debate`. If you previously cloned it manually into
+`~/.claude/skills/spec-debate/`, remove that copy first to avoid double registration.
 
-- `~/.claude/skills/spec-debate/` — personal, available in every project;
-- `<project>/.claude/skills/spec-debate/` — inside a specific repo (can be committed).
-
-It works in either location without edits: SKILL.md resolves the helper script relative to its own
-folder. Layout:
+SKILL.md resolves the helper script relative to its own folder, so it works wherever the plugin is
+installed. Layout:
 
 ```
 spec-debate/

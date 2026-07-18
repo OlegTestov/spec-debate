@@ -1,16 +1,20 @@
 ---
 name: spec-debate
 description: >-
-  Make a spec, plan, design, PRD — or the approach for a task or a code change you are about to
-  work on — measurably better by debating it with a second AI (OpenAI Codex) and vetting every
-  point yourself with veto power. The iterated artifact is ALWAYS a spec: for a bare task you draft
-  one, for code you draft a change-spec (the code itself is not edited during the debate), for an
-  existing spec you take it as-is. Use ONLY when a second opinion is explicitly requested — phrases
-  like "consult Codex", "ask Codex", "think it through with Codex", "get a second opinion",
-  "debate / stress-test this", "let the second model critique it", "do another round". A bare
-  "write a spec" / "refactor this" WITHOUT asking for a second opinion does NOT trigger this skill.
-  A bounded advisory question runs as a single prompt-only consult; otherwise one invocation = one
-  round unless several are requested. The skill remembers what was settled so rounds don't repeat.
+  Make a spec, plan, design, PRD — or the approach for a task/code change, or a
+  claim/idea/thesis — measurably better by debating it with a second AI (OpenAI
+  Codex), vetting every point yourself with veto power. The iterated artifact is
+  ALWAYS a spec: a bare task gets one drafted, code gets a change-spec (not
+  edited during the debate), an existing spec is taken as-is, a raw
+  claim/idea/thesis gets a short position-spec. Use ONLY when a second-model
+  opinion is explicitly requested — "consult Codex", "ask Codex", "think it
+  through with Codex", "get a second opinion", "debate/stress-test this", "let
+  the second model critique it", "have Codex check it", "get GPT's/ChatGPT's
+  take", "do another round". A bare "write a spec"/"refactor this"/"verify
+  this" without explicitly requesting a second opinion does NOT trigger this
+  skill. A bounded advisory question runs as a single prompt-only consult;
+  otherwise one invocation = one round unless more are requested. Remembers
+  what was settled so rounds don't repeat.
 ---
 
 # spec-debate — debate a spec with a second model, with veto
@@ -21,11 +25,12 @@ actual spec and keep only what genuinely improves it. The vetting is the whole p
 always obeyed is just a second author.
 
 **The iterated artifact is always a spec** (requirements / design / plan / PRD — any domain). There are
-three ways in, all converging on iterating one spec:
+four ways in, all converging on iterating one spec:
 - **TASK** → you draft a solution spec.
 - **CODE** → you draft a *change-spec*; the code is reference material, **not edited during the
   debate** (it is applied afterwards, as a separate step, if you have access).
 - **EXISTING SPEC** → you take it as the artifact.
+- **IDEA/CLAIM/THESIS** → you draft a short position-spec; bounded one-pass versions go prompt-only (no file).
 
 Each round, **both models independently propose improvements**; you **merge with veto** and apply the
 result to the spec. **Goal: a better spec, not a bigger one** — close real gaps, cover core scenarios,
@@ -50,7 +55,8 @@ First a **surface scope scan** — structure, size, number of files/components, 
 non-trivial. This is a *shallow look, not deep reading*: deep study **of the referenced material**
 happens inside the chosen mode (Step 3b), so you never pay for it twice. Then choose:
 - **prompt-only** — a bounded advisory question whose output is advice/a comparison the user applies
-  directly, with nothing worth iterating and the scan showing it closes in one pass.
+  directly (a design comparison; a one-pass critique of a single diff or file you embed), with nothing
+  worth iterating and the scan showing it closes in one pass.
 - **iterable spec (the main flow)** — breadth or complexity (several files/components or substantial
   material; a design with several coupled decisions), or the user wants iteration / a written spec.
 
@@ -90,7 +96,7 @@ finding). Then continue below.
   If the type is ambiguous, make the call, state it, and proceed — the user will correct you.
 
 ## Step 2 — Load state
-Look for `.<filename>.debate-state.json` beside the spec.
+Look for `.<filename>.debate-state.json` beside the spec. (If you move the spec, move its debate-state file with it.)
 - Not found → round 1, fresh state.
 - Found → next round = `last_round + 1`. Collect prior `rejected` and `partial` findings (both
   sources) with reasons; you'll hand them to Codex so it doesn't re-raise settled points.
@@ -173,11 +179,20 @@ path differs in each.
 `bash "<skill_dir>/scripts/run_codex_critique.sh" <prompt_file> <effort> <workdir>`
 If the helper isn't found there, treat the install as broken — stop and report it; do not fall back to
 a guessed or remembered path.
+- **Always via the helper, never raw.** Don't run `codex exec` yourself with the prompt as an argv
+  argument — with an idle stdin attached it hangs ("Reading additional input from stdin…"). The helper
+  feeds the prompt via stdin with EOF (and keeps it off the process list), which is the fix.
 - `<workdir>`: the material's repo/dir root when it's local to Codex (lets Codex read referenced files,
   read-only); else the prompt file's dir.
-- Run it with the Bash tool's `timeout` set to `300000` (ms). The helper allows one `codex exec` at a
-  time: it briefly waits for a just-finished codex to clear, then refuses (exit 3) only if one is
-  genuinely still running — its error message tells you how to inspect and wait.
+- Match the Bash tool's `timeout` to effort and prompt size (operational guidance, not a helper limit):
+  `300000` (ms) is usually enough for `low`/`medium` on a small prompt; for `high`/`xhigh`, or a large
+  embed (a big spec plus a full diff — hundreds of lines / tens of KB), raise it toward the `600000` max,
+  or drop to `medium` if you don't need `high`. The helper allows one `codex exec` at a time: it briefly
+  waits (~5s) for a just-finished codex to clear, then refuses (exit 3) if one is still running. **If a
+  pass hit the Bash timeout, its codex may still be running** (depending on how the timeout kills the
+  process) — the next call will trip this guard; wait for the slot with `CODEX_MAX_WAIT_SECS=<seconds>`
+  (raise the Bash `timeout` to match) instead of firing a second run. The same applies if the running
+  codex isn't yours (another session/agent) — wait, don't kill a run you don't own.
 - Output ends with `CODEX_EXIT:<n>`; if non-zero, the helper already printed codex's stderr inline —
   read it and stop. An `ERROR:` line with no `CODEX_EXIT` is a preflight failure (codex/pgrep missing,
   bad effort/workdir, unreadable prompt) — read it and stop.

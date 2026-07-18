@@ -6,13 +6,18 @@
 #                 or referenced by exact in-workdir path with a read-in-full instruction)
 #   effort      : model_reasoning_effort — high (default) | medium | low | xhigh
 #   workdir     : sandbox root for codex (-C). Defaults to the prompt file's dir.
+#   env CODEX_MAX_WAIT_SECS : seconds to wait for a running codex to clear before refusing
+#                 (default 5 — covers teardown overlap; 0 disables the wait). Raise it (e.g. 900)
+#                 to WAIT for a concurrent run from another session/agent instead of exiting 3.
 #
 # Why this script exists:
 #   - One `codex exec` at a time. The original deadlock came from passing the doc on
 #     argv with an open, idle stdin (see the invocation note below); that is fixed by
 #     feeding the prompt via stdin with EOF. The guard is kept as cheap defense-in-depth,
 #     and it tolerates a just-finished codex still tearing down by polling briefly before
-#     refusing — a genuinely concurrent run still blocks.
+#     refusing. A genuinely concurrent run blocks by default; set CODEX_MAX_WAIT_SECS=<n>
+#     to WAIT that many seconds for the slot to free (e.g. a run owned by another session)
+#     instead of failing.
 #   - codex is sandboxed to -C and CANNOT read files outside it, so the caller
 #     must embed the full spec text in the prompt file — or, when the spec file
 #     itself lives inside -C, reference it by exact path with a read-in-full
@@ -63,18 +68,27 @@ codex_exec_running() {  # 0 = one is running, 1 = none, 2 = pgrep failed
 }
 
 # A match may be the PRIOR step's codex still tearing down rather than a genuine concurrent
-# run (e.g. critique → cross-critique back-to-back). Poll up to ~5s for it to clear before
-# refusing, so a transient teardown overlap doesn't spuriously block the run.
+# run (e.g. critique → cross-critique back-to-back), OR a run owned by another session/agent.
+# Poll for the slot to clear before refusing. CODEX_MAX_WAIT_SECS caps the wait (default 5s —
+# covers a teardown overlap); raise it (e.g. 900) to WAIT for a concurrent run to finish so the
+# debate self-recovers instead of erroring. Poll interval is 0.5s.
+MAX_WAIT_SECS="${CODEX_MAX_WAIT_SECS:-5}"
+case "$MAX_WAIT_SECS" in
+  ''|*[!0-9]*) echo "ERROR: CODEX_MAX_WAIT_SECS must be a non-negative integer (seconds); got '$MAX_WAIT_SECS'." >&2; exit 5 ;;
+esac
+max_polls=$((10#$MAX_WAIT_SECS * 2))  # 0.5s per poll; 10# forces base-10 (a leading-zero value like 08/010 must not be read as octal)
+
 codex_exec_running; guard_rc=$?
 guard_polls=0
-while [ "$guard_rc" -eq 0 ] && [ "$guard_polls" -lt 10 ]; do
+while [ "$guard_rc" -eq 0 ] && [ "$guard_polls" -lt "$max_polls" ]; do
   sleep 0.5
   guard_polls=$((guard_polls + 1))
   codex_exec_running; guard_rc=$?
 done
 case "$guard_rc" in
   0)
-    echo "ERROR: another 'codex exec' is still running for this user after ~5s. Concurrent codex runs can hang." >&2
+    echo "ERROR: another 'codex exec' is still running for this user after ${MAX_WAIT_SECS}s. Concurrent codex runs can hang." >&2
+    echo "       To WAIT for it (e.g. a run owned by another session) instead of failing, re-run with CODEX_MAX_WAIT_SECS=<seconds> (e.g. 900), and raise the caller's timeout to match." >&2
     # The inspection hint is a LOOSE substring on purpose: `ps` prefixes each line with the PID, so the
     # bounded guard pattern misses the bare `<pid> codex exec` form in ps output. A human reading the
     # result can tell a real codex from a process that merely mentions the string, so loose is right here.
