@@ -1,20 +1,21 @@
 ---
 name: spec-debate
 description: >-
-  Improve a spec, plan, design, PRD, task/code-change approach, or claim by
-  debating it with a second AI reviewer, vetting every point with veto power.
-  Reviewer = OpenAI Codex (default), an opencode model (kimi/glm/…), or a fresh
-  Claude instance (opus/sonnet) — resolved from the request. The artifact is
-  always a spec: task/code/claim gets one drafted; an existing spec is taken
-  as-is. Use ONLY on an explicit outside-opinion request — "get a second
-  opinion", "ask/consult Codex/kimi/glm", "debate/stress-test this",
-  "спроси/посоветуйся с кодексом/кими/glm", "пусть кими/glm/опус
-  раскритикует/оценит это", "дай кому-нибудь на второе мнение". Model names are
-  reviewers reached THROUGH this skill (no standalone CLI); opus/sonnet = fresh
-  instance, still FIRES. Bare "review this"/"найди дыры"/"оцени" addressed to
-  you does NOT trigger, nor does "do the task with model X" ("перепиши на kimi",
-  "use opus to refactor"). Bounded question → one prompt-only consult; else one
-  invocation = one round; settled points not re-raised.
+  Debate a spec, plan, design, PRD, code change, or claim with a second AI
+  reviewer, vetting every point with veto power. Reviewer = OpenAI Codex
+  (default), an opencode model (kimi/glm…), or a fresh Claude instance
+  (opus/sonnet), resolved from the request. Artifact is always a spec:
+  task/code/claim gets one drafted; existing spec taken as-is. Use ONLY on an
+  explicit outside-opinion request — "get a second opinion", "ask/consult
+  Codex/kimi/glm", "debate/stress-test this", "спроси/посоветуйся с
+  кодексом/кими/glm", "пусть кими/glm/опус раскритикует/оценит это", "дай
+  кому-нибудь на второе мнение". Model names = reviewers reached THROUGH this
+  skill (no standalone CLI). Named opus/sonnet: NEVER review yourself even if
+  you ARE that model — a FRESH instance reviews. FIRES. Bare "review
+  this"/"найди дыры"/"оцени" to you does NOT trigger, nor does "do the task
+  with model X" ("перепиши на kimi", "use opus to refactor"). Bounded question
+  → one prompt-only consult; else 1 invocation = 1 round; settled points not
+  re-raised.
 ---
 
 # spec-debate — debate a spec with a second model, with veto
