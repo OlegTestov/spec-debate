@@ -68,19 +68,18 @@ kimi, Zhipu для glm — или **Anthropic** (свежий Claude). Скил�
 
 ## Установка
 
-Эта версия поставляется в плагине **`agentic-tools`** в маркетплейсе **`omd-plugins`**. В Claude Code один раз добавь
-маркетплейс, затем поставь плагин:
+Клонируй прямо в папку скиллов Claude Code:
 
-```
-/plugin marketplace add git@gitlab.sol.onetick.com:solutions/ml-ops/ai-plugins.git
-/plugin install agentic-tools@omd-plugins
+```bash
+git clone https://github.com/OlegTestov/spec-debate.git ~/.claude/skills/spec-debate
 ```
 
-Скилл доступен как `/spec-debate`. Если раньше клонировал его вручную в
-`~/.claude/skills/spec-debate/`, удали ту копию, чтобы не было двойной регистрации.
+Скилл доступен как `/spec-debate` в Claude Code (и триггерится на формулировки выше).
+Обновление: `git -C ~/.claude/skills/spec-debate pull`.
 
-SKILL.md находит вспомогательные скрипты относительно собственной папки, поэтому работает там, где
-установлен плагин. Структура:
+SKILL.md находит вспомогательные скрипты относительно собственной папки, поэтому работает из любого
+места, откуда Claude Code грузит скиллы. Если ставишь этот скилл ещё и через плагин-маркетплейс —
+держи только одну копию, чтобы не было двойной регистрации. Структура:
 
 ```
 spec-debate/

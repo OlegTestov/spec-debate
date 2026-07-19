@@ -67,19 +67,18 @@ the spec, and don't run the default mode on data you can't share with that provi
 
 ## Install
 
-This skill ships in the **`agentic-tools`** plugin in the **`omd-plugins`** marketplace. Inside Claude Code,
-add the marketplace once, then install the plugin:
+Clone straight into your Claude Code skills folder:
 
-```
-/plugin marketplace add git@gitlab.sol.onetick.com:solutions/ml-ops/ai-plugins.git
-/plugin install agentic-tools@omd-plugins
+```bash
+git clone https://github.com/OlegTestov/spec-debate.git ~/.claude/skills/spec-debate
 ```
 
-The skill is then available as `/spec-debate`. If you previously cloned it manually into
-`~/.claude/skills/spec-debate/`, remove that copy first to avoid double registration.
+The skill is then available as `/spec-debate` in Claude Code (and triggers on the phrasings above).
+To update later: `git -C ~/.claude/skills/spec-debate pull`.
 
-SKILL.md resolves the helper scripts relative to its own folder, so it works wherever the plugin is
-installed. Layout:
+SKILL.md resolves the helper scripts relative to its own folder, so any location Claude Code loads
+skills from works. If you also get this skill through a plugin marketplace, keep only one copy to
+avoid double registration. Layout:
 
 ```
 spec-debate/
