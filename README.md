@@ -53,10 +53,12 @@ principle: a **better** result, not a **bigger** one — the skill actively resi
 
 ## Data & privacy
 
-By default spec-debate sends the **full text of the spec** (plus any files Codex reads in its workdir)
-to the reviewer's provider: **OpenAI** (Codex), the **opencode model's provider** — e.g. Moonshot for
-kimi, Zhipu for glm — or **Anthropic** (a fresh Claude). The skill names the resolved provider in its
-report; if a fallback changed the provider from the one you named, it says so. For sensitive material,
+By default spec-debate sends the **full text of the spec** to the reviewer's provider: **OpenAI**
+(Codex, plus files it reads in its workdir) or **Anthropic** (a fresh Claude, plus files it reads in its
+workdir). For **opencode**, the first recipient is the provider/gateway configured in opencode — for
+`opencode-go/*` model ids that is the **OpenCode Go** gateway, which relays to the model's vendor (e.g.
+Moonshot for kimi, Zhipu for glm); a direct `provider/model` id goes to that provider. The skill names
+the resolved provider in its report; if a fallback changed it from the one you named, it says so. For sensitive material,
 opt into **privacy mode** ("privacy mode" / "don't send the code"): the reviewer then gets only an
 approved abstracted summary — confidence marked limited — or the pass is declined. Don't put secrets in
 the spec, and don't run the default mode on data you can't share with that provider.
@@ -104,8 +106,9 @@ spec-debate/
 /spec-debate path --max            # max reasoning depth (default high; slower) — codex→xhigh, opencode→max
 ```
 
-Effort levels are **low / medium / high / max** and map per harness (claude has no effort knob). Want
-another round? Invoke again — it picks up the state. You can add free-form instructions, e.g. "run 3
+Effort levels are **low / medium / high / max** and map per harness: codex spans all four (max→xhigh);
+opencode is coarse (minimal / high / max, so medium≈high); claude has no effort knob. Want another
+round? Invoke again — it picks up the state. You can add free-form instructions, e.g. "run 3
 rounds" or "keep going until no significant findings remain".
 
 ## How it works (in brief)

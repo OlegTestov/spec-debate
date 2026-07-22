@@ -85,11 +85,11 @@
     {
       "id": 7,
       "prompt": "Ask kimi whether this plan holds up: cache external-API responses in process memory with a 5-minute TTL, key = URL.",
-      "expected_output": "The skill triggers on a named reviewer model (kimi) and routes to the opencode harness: Step 0 resolves the latest kimi base model (discovered via `opencode models`, variant suffixes like -code excluded), the critique runs via scripts/run_critique.sh opencode with the prompt fed over stdin, and the report names the reviewer and its provider (e.g. Moonshot for kimi). No codex call is made.",
+      "expected_output": "The skill triggers on a named reviewer model (kimi) and routes to the opencode harness: Step 0 resolves the latest kimi version (discovered via `opencode models`, matched by model-family basename), the critique runs via scripts/run_critique.sh opencode with the prompt fed over stdin, and the report names the reviewer and its provider/gateway. No codex call is made.",
       "files": [],
       "expectations": [
         "Triggered on 'ask kimi' — a reviewer model named by name, no harness word in the prompt",
-        "Resolved kimi -> opencode harness with the LATEST base kimi model (variant suffixes such as -code not mistaken for versions)",
+        "Resolved kimi -> opencode harness with the LATEST kimi version (family matched by basename glob; an unresolvable family errors instead of silently substituting)",
         "The critique ran via scripts/run_critique.sh opencode with the prompt fed via stdin (never argv)",
         "No codex invocation occurred (single named reviewer respected)",
         "The report names the reviewer model and its actual provider"

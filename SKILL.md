@@ -200,7 +200,8 @@ a guessed or remembered path.
   — for codex — delegates to the hardened `run_codex_critique.sh` unchanged. `<H>` and `[model]` come
   from Step 0; `<effort>` is the abstract level.
 - `<workdir>`: the material's repo/dir root when it's local (codex reads it read-only — see Conveying the
-  material); else the prompt file's dir.
+  material); else the prompt file's dir. codex uses it as the sandbox root, claude as its cwd; opencode
+  ignores it and runs in a throwaway temp dir (its context is always embedded).
 - Match the Bash tool's `timeout` to effort and prompt size (any harness): `300000` (ms) is usually
   enough for `low`/`medium` on a small prompt; for `high`/`max`, or a large embed (a big spec plus a full
   diff — hundreds of lines / tens of KB), raise it toward the `600000` max, or drop the effort. **Codex
@@ -209,8 +210,10 @@ a guessed or remembered path.
   `timeout` to match) instead of firing a second run, and don't kill a run you don't own. opencode and
   claude have no such guard.
 - Output ends with `CRITIQUE_EXIT:<n>`; if non-zero, the dispatcher already printed the reviewer's stderr
-  inline — read it and stop. An `ERROR:` line with no `CRITIQUE_EXIT` is a preflight failure (CLI/auth
-  missing, bad effort/workdir, unreadable prompt) — read it and stop.
+  inline — read it and stop. A reviewer that exits 0 with **empty** output (a provider error, a rejected
+  permission) is a silent failure, not "no findings" — the dispatcher turns it into `CRITIQUE_EXIT:1`, so
+  an empty critique is never consensus. An `ERROR:` line with no `CRITIQUE_EXIT` is a preflight failure
+  (CLI/auth missing, bad effort/workdir/model, unreadable prompt) — read it and stop.
 
 **3c — Cross-critique (thorough or own major+).** Run ONE more reviewer call: give the reviewer **your**
 proposal list (with the same context as 3b — spec, task, material) and ask, per item, agree / partial /
@@ -298,18 +301,22 @@ the next round's gathering. Lesser questions go into the spec's open questions a
 
 ## Guardrails
 - **Privacy** — *default: unrestricted.* The spec and any referenced material are sent to the reviewer's
-  provider: **OpenAI** (codex), the **opencode model's provider** (e.g. Moonshot for kimi, Zhipu for
-  glm), or **Anthropic** (a fresh Claude). Name the resolved provider in your "sent to reviewer" note; if
-  a fallback changed the provider from what the user named, say so. **Privacy-mode** is an explicit
-  opt-in ("privacy mode" / "don't send the code"): then send only an approved abstracted summary (mark
-  its confidence as limited), or decline the pass if it can't be judged without the material. Never embed
-  obvious secrets — same bar for every provider.
+  provider: **OpenAI** (codex) or **Anthropic** (a fresh Claude). For opencode the first recipient is the
+  **provider/gateway configured in opencode** — for `opencode-go/*` ids that is the **OpenCode Go**
+  gateway, which relays to the model's vendor (e.g. Moonshot for kimi, Zhipu for glm); a direct
+  `provider/model` goes to that provider. Don't assert where a gateway forwards next. The claude reviewer
+  also gets any files it reads in `<workdir>` (to Anthropic), not just the prompt. Name the resolved
+  provider in your "sent to reviewer" note; if a fallback changed it from what the user named, say so.
+  **Privacy-mode** is an explicit opt-in ("privacy mode" / "don't send the code"): then send only an
+  approved abstracted summary (mark its confidence as limited), or decline the pass if it can't be judged
+  without the material. Never embed obvious secrets — same bar for every provider.
 - **One codex at a time** — codex-specific; the helper enforces it, never launch a second yourself.
   opencode and claude reviewers have no such limit.
 - **The reviewer never edits files** — it only proposes. Codex is sandboxed read-only; the claude
-  reviewer runs in non-editing `plan` mode; the opencode reviewer's default agent is *not* hard-sandboxed,
-  so the dispatcher gives it a critique-only prompt and isolates it to the prompt file's dir (never point
-  its workdir at your repo). All edits are yours, after vetting.
+  reviewer runs in non-editing `plan` mode with project MCP servers disabled; the opencode reviewer's
+  default agent is *not* hard-sandboxed, so the dispatcher runs it in a throwaway temp dir (its `--dir`,
+  never your repo) with a critique-only prompt — its own permission model blocks writes outside that dir,
+  though this is not an OS-level sandbox. All edits are yours, after vetting.
 - **Same-model caveat** — if a fallback resolves to a claude reviewer that is your own model, a *fresh
   instance* removes anchoring but not correlated blind spots; prefer codex or opencode for true
   cross-provider independence (codex stays the default, so this is the exception).
