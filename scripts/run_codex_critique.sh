@@ -111,7 +111,8 @@ if [ ! -d "$WORKDIR" ]; then
 fi
 
 ERR_FILE="$(mktemp "${TMPDIR:-/tmp}/spec-debate-codex.XXXXXX")"  # trailing X's: portable BSD+GNU
-trap 'rm -f "$ERR_FILE"' EXIT  # never leave the temp stderr file behind
+OUT_FILE="$(mktemp "${TMPDIR:-/tmp}/spec-debate-codex.XXXXXX")"
+trap 'rm -f "$ERR_FILE" "$OUT_FILE"' EXIT  # never leave the temp files behind
 
 # Feed the prompt to codex via STDIN, not as an argv arg. `codex exec` reads instructions from
 # stdin when the prompt argument is `-` (see `codex exec --help`). This keeps the full document
@@ -126,8 +127,15 @@ codex exec \
   -c "model_reasoning_effort=\"$EFFORT\"" \
   - \
   <"$PROMPT_FILE" \
+  >"$OUT_FILE" \
   2>"$ERR_FILE"
 status=$?
+
+cat "$OUT_FILE"
+# The marker must be its OWN line. codex's stdout is buffered to a file (instead of streamed) purely
+# so this is checkable: without the guard, output ending mid-line glues the marker onto it
+# ("...no TTL.CODEX_EXIT:0"), and the caller's anchored match then finds no marker at all.
+[ -n "$(tail -c1 "$OUT_FILE")" ] && echo
 
 # Keep stdout (the critique) clean; surface stderr only when the run actually failed.
 if [ "$status" -ne 0 ]; then

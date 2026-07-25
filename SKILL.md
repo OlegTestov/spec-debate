@@ -197,7 +197,7 @@ If the script isn't found there, treat the install as broken — stop and report
 a guessed or remembered path.
 - **Always via the dispatcher, never raw.** It feeds the prompt via **stdin** (keeps the spec text off
   the process list; no ARG_MAX limit on large embeds), preflights the CLI, maps effort per harness, and
-  — for codex — delegates to the hardened `run_codex_critique.sh` unchanged. `<H>` and `[model]` come
+  — for codex — delegates to the hardened `run_codex_critique.sh`. `<H>` and `[model]` come
   from Step 0; `<effort>` is the abstract level.
 - `<workdir>`: the material's repo/dir root when it's local (codex reads it read-only — see Conveying the
   material); else the prompt file's dir. codex uses it as the sandbox root, claude as its cwd; opencode

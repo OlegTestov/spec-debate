@@ -52,6 +52,9 @@ emit_result() {  # <exit_code> <stdout_file> <stderr_file> <label>
     echo "CRITIQUE_EXIT:1"; return
   fi
   cat "$out"
+  # A reviewer whose stdout lacks a trailing newline would otherwise glue the marker onto its last
+  # line ("...no TTL.CRITIQUE_EXIT:0") — the caller reads the marker as a LINE, so guarantee one.
+  [ -n "$(tail -c1 "$out")" ] && echo
   [ "$code" -ne 0 ] && { echo "----- $label stderr (exit $code) -----" >&2; cat "$err" >&2; }
   echo "CRITIQUE_EXIT:$code"
 }
