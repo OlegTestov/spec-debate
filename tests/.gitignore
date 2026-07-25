@@ -1,0 +1,6 @@
+# Local run output, never committed: transcripts and recorded reviewer prompts contain whatever the
+# machine that ran them had on disk. Kept next to the suites so this copy is self-contained wherever
+# the skill is vendored.
+e2e/artifacts/
+*.log
+__pycache__/
