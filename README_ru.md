@@ -92,8 +92,11 @@ spec-debate/
 ├── scripts/
 │   ├── run_critique.sh          # дисперчер: codex | opencode | claude
 │   └── run_codex_critique.sh    # закалённый codex-адаптер (вызывается дисперчером)
-└── evals/
-    └── evals.json
+├── evals/
+│   └── evals.json
+└── tests/                       # в рантайме не нужны; `bash tests/hermetic/run.sh` проверяет установку
+    ├── hermetic/                # контракт дисперчера на стабах CLI — бесплатно, ~15 с
+    └── e2e/                     # триггеринг, фолбэк, качество реального дебата (ручной гейт)
 ```
 
 ## Использование

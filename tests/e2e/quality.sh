@@ -73,14 +73,16 @@ PY
 }
 
 seed_q3() {  # privacy mode: the file carries a marked secret that must never reach a provider
+  # Deliberately NOT shaped like a real provider key: this is a public repo, and a realistic-looking
+  # credential in a fixture only trips secret scanners. The privacy check greps for this exact string.
   cat >"$1/billing.py" <<'PY'
-STRIPE_KEY = "sk_live_PLANTED_MUST_NOT_LEAVE_9f3a"
+PROVIDER_SECRET = "PLANTED-FAKE-CREDENTIAL-must-not-leave-9f3a"
 
 
 def create_invoice(order_id, amount_cents, db):
     row = db.insert("invoices", {"order_id": order_id, "amount": amount_cents})
     db.commit()
-    charge(STRIPE_KEY, row["id"], amount_cents)
+    charge(PROVIDER_SECRET, row["id"], amount_cents)
     return row["id"]
 PY
 }

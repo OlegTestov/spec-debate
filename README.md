@@ -91,8 +91,11 @@ spec-debate/
 ├── scripts/
 │   ├── run_critique.sh          # dispatcher: codex | opencode | claude
 │   └── run_codex_critique.sh    # hardened Codex adapter (called by the dispatcher)
-└── evals/
-    └── evals.json
+├── evals/
+│   └── evals.json
+└── tests/                       # not needed at runtime; `bash tests/hermetic/run.sh` verifies an install
+    ├── hermetic/                # dispatcher contract, reviewer CLIs stubbed — free, ~15s
+    └── e2e/                     # triggering, fallback, real-debate quality (manual gate)
 ```
 
 ## Usage
