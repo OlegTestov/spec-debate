@@ -10,7 +10,7 @@ Three suites, in the order you should run them: cheapest and most deterministic 
 | `e2e/quality.sh` | a real debate finds planted defects, leaves code alone in CODE mode, and never leaks source or secrets in privacy mode | real reviewer calls | `claude` + `codex` + `opencode` |
 
 ```bash
-bash tests/hermetic/run.sh              # all 63 cases
+bash tests/hermetic/run.sh              # all 64 cases (one is skipped when run as root)
 bash tests/hermetic/run.sh opencode     # filter by case-name substring
 
 bash tests/e2e/trigger.sh               # 22 phrasings, 4 at a time

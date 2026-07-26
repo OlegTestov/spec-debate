@@ -23,8 +23,18 @@ c "contract: prompt file missing → exit 4" && {
   check "rc 4" rc_is 4; check "says not readable" err_has "prompt file not readable"; verdict; }
 
 c "contract: prompt file unreadable → exit 4" && {
-  chmod 000 "$PROMPT"; dispatch codex "$PROMPT"; chmod 644 "$PROMPT"
-  check "rc 4" rc_is 4; verdict; }
+  # chmod cannot hide a file from root, which is who runs CI containers — skip rather than assert a
+  # permission model the environment does not have.
+  if [ "$(id -u)" = 0 ]; then skip "running as root: chmod 000 leaves the file readable"; else
+    chmod 000 "$PROMPT"; dispatch codex "$PROMPT"; chmod 644 "$PROMPT"
+    check "rc 4" rc_is 4; verdict
+  fi; }
+
+c "contract: unreadable prompt path (dangling symlink) → exit 4" && {
+  # Same branch as above, but unreadable for root too — so CI covers it.
+  ln -s "$CASEDIR/no-such-target" "$CASEDIR/dangling.txt"
+  dispatch codex "$CASEDIR/dangling.txt"
+  check "rc 4" rc_is 4; check "says not readable" err_has "prompt file not readable"; verdict; }
 
 c "contract: invalid effort → exit 5" && {
   dispatch codex "$PROMPT" ultra
