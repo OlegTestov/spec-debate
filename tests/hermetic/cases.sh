@@ -75,6 +75,13 @@ c "codex: reviewer failure → CRITIQUE_EXIT:7, process still exits 0" && {
   install_stub codex; STUB_RC=7 STUB_OUT="partial" dispatch codex "$PROMPT"
   check "rc 0 (marker contract)" rc_is 0; check "marker 7" out_last_is "CRITIQUE_EXIT:7"; verdict; }
 
+c "codex: zero exit with empty output is a failure, not consensus" && {
+  # The guard the other harnesses have: an empty critique at exit 0 is a failed pass (provider error,
+  # rejected permission), never agreement. The codex path must not be the exception.
+  install_stub codex; STUB_OUT="" STUB_RC=0 dispatch codex "$PROMPT"
+  check "rc 0 (marker contract)" rc_is 0; check "marker 1" out_last_is "CRITIQUE_EXIT:1"
+  check "explains on stderr" err_has "ERROR-EMPTY"; verdict; }
+
 c "codex: effort max maps to xhigh" && {
   install_stub codex; STUB_OUT=x dispatch codex "$PROMPT" max
   check "xhigh passed to codex" argv_has codex 'model_reasoning_effort="xhigh"'; verdict; }

@@ -63,9 +63,20 @@ case "$HARNESS" in
   codex)
     command -v codex >/dev/null 2>&1 || { echo "ERROR: codex CLI not found. Install: npm i -g @openai/codex" >&2; exit 2; }
     [ "$EFFORT" = max ] && EFFORT=xhigh   # codex reasoning-effort vocab
-    bash "$SKILL_DIR/run_codex_critique.sh" "$PROMPT_FILE" "$EFFORT" "$WORKDIR" \
-      | sed 's/^CODEX_EXIT:\([0-9][0-9]*\)$/CRITIQUE_EXIT:\1/'
-    exit "${PIPESTATUS[0]}"
+    out="$(mktemp "${TMPDIR:-/tmp}/spec-debate-cx.XXXXXX")"; err="$(mktemp "${TMPDIR:-/tmp}/spec-debate-cx.XXXXXX")"
+    body="$(mktemp "${TMPDIR:-/tmp}/spec-debate-cx.XXXXXX")"
+    trap 'rm -f "$out" "$err" "$body"' EXIT
+    bash "$SKILL_DIR/run_codex_critique.sh" "$PROMPT_FILE" "$EFFORT" "$WORKDIR" >"$out" 2>"$err"; hrc=$?
+    # The helper's last line is its own CODEX_EXIT marker. Split it off and hand the body to
+    # emit_result, so the codex path gets the SAME empty-output guard as the others — otherwise a
+    # codex that exits 0 with no critique would read as "no findings" instead of a failed pass.
+    case "$(tail -1 "$out")" in
+      CODEX_EXIT:[0-9]*)
+        sed '$d' "$out" >"$body"
+        emit_result "$(tail -1 "$out" | cut -d: -f2)" "$body" "$err" "codex" ;;
+      *)  # no marker = the helper failed preflight (missing CLI/pgrep, guard refusal): stay non-zero
+        cat "$out"; cat "$err" >&2; exit "$hrc" ;;
+    esac
     ;;
 
   opencode)
