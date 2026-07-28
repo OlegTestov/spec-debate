@@ -15,8 +15,8 @@
 # The prompt is ALWAYS fed via STDIN (never argv): keeps the spec text off the process list and
 # avoids ARG_MAX on large embeds. Preflight failures print an `ERROR:` line (no CRITIQUE_EXIT marker)
 # and exit non-zero. A printed `CRITIQUE_EXIT:<n>` line ALWAYS means the dispatcher process exits 0.
-# The codex path delegates to the hardened `run_codex_critique.sh` UNCHANGED and normalizes its
-# `CODEX_EXIT` marker to a single `CRITIQUE_EXIT`.
+# The codex path delegates to the hardened `run_codex_critique.sh` and rewrites its `CODEX_EXIT` marker
+# into the same `CRITIQUE_EXIT` contract every other harness uses, empty-output guard included.
 set -uo pipefail
 
 HARNESS="${1:?usage: run_critique.sh <codex|opencode|claude> <prompt_file> [effort] [workdir] [model]}"
@@ -24,7 +24,7 @@ PROMPT_FILE="${2:?prompt_file required}"
 EFFORT="${3:-high}"
 WORKDIR="${4:-$(cd "$(dirname "$PROMPT_FILE")" 2>/dev/null && pwd)}"
 MODEL="${5:-}"
-SKILL_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 case "$EFFORT" in low|medium|high|max|xhigh) ;; *) echo "ERROR: invalid effort '$EFFORT' (low|medium|high|max)." >&2; exit 5 ;; esac
 [ -r "$PROMPT_FILE" ] || { echo "ERROR: prompt file not readable: $PROMPT_FILE" >&2; exit 4; }
@@ -66,7 +66,7 @@ case "$HARNESS" in
     out="$(mktemp "${TMPDIR:-/tmp}/spec-debate-cx.XXXXXX")"; err="$(mktemp "${TMPDIR:-/tmp}/spec-debate-cx.XXXXXX")"
     body="$(mktemp "${TMPDIR:-/tmp}/spec-debate-cx.XXXXXX")"
     trap 'rm -f "$out" "$err" "$body"' EXIT
-    bash "$SKILL_DIR/run_codex_critique.sh" "$PROMPT_FILE" "$EFFORT" "$WORKDIR" >"$out" 2>"$err"; hrc=$?
+    bash "$SCRIPT_DIR/run_codex_critique.sh" "$PROMPT_FILE" "$EFFORT" "$WORKDIR" >"$out" 2>"$err"; hrc=$?
     # The helper's last line is its own CODEX_EXIT marker. Split it off and hand the body to
     # emit_result, so the codex path gets the SAME empty-output guard as the others — otherwise a
     # codex that exits 0 with no critique would read as "no findings" instead of a failed pass.
@@ -112,7 +112,17 @@ case "$HARNESS" in
     # Fresh instance, non-editing (plan) mode, and NO project/user MCP servers (a reviewer only needs
     # the embedded prompt — this keeps it off Jira/GitLab/etc.). Prompt via stdin; omit --model to
     # inherit the orchestrator's default.
-    ( cd "$WORKDIR" && claude -p --permission-mode plan --strict-mcp-config --mcp-config '{"mcpServers":{}}' ${MODEL:+--model "$MODEL"} < "$PROMPT_FILE" ) >"$out" 2>"$err"; code=$?
+    #
+    # A fresh instance is not automatically a NEUTRAL one: by default it also loads the user's
+    # CLAUDE.md, their skills (this one included) and hooks, which is precisely the bias a second
+    # opinion exists to avoid — so drop user-level settings and bound the agent loop. Both flags are
+    # probed rather than assumed: an older CLI rejects an unknown flag outright and the pass would fail.
+    help="$(claude --help 2>/dev/null)"
+    iso=""; case "$help" in *--setting-sources*) iso="--setting-sources project" ;; esac
+    cap=""; case "$help" in *--max-turns*)       cap="--max-turns 30" ;; esac
+    # shellcheck disable=SC2086   # $iso and $cap are deliberate flag+value pairs, empty when unsupported
+    ( cd "$WORKDIR" && claude -p --permission-mode plan --strict-mcp-config --mcp-config '{"mcpServers":{}}' \
+        $iso $cap ${MODEL:+--model "$MODEL"} < "$PROMPT_FILE" ) >"$out" 2>"$err"; code=$?
     emit_result "$code" "$out" "$err" "claude reviewer"
     ;;
 

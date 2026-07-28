@@ -313,7 +313,9 @@ the next round's gathering. Lesser questions go into the spec's open questions a
 - **One codex at a time** — codex-specific; the helper enforces it, never launch a second yourself.
   opencode and claude reviewers have no such limit.
 - **The reviewer never edits files** — it only proposes. Codex is sandboxed read-only; the claude
-  reviewer runs in non-editing `plan` mode with project MCP servers disabled; the opencode reviewer's
+  reviewer runs in non-editing `plan` mode with MCP servers disabled, user-level settings dropped
+  (no user `CLAUDE.md`, skills or hooks — "fresh" has to mean *neutral*, and a `CLAUDE.md` is an
+  instruction surface) and a bounded turn count; a project `CLAUDE.md` inside `<workdir>` still applies; the opencode reviewer's
   default agent is *not* hard-sandboxed, so the dispatcher runs it in a throwaway temp dir (its `--dir`,
   never your repo) with a critique-only prompt — its own permission model blocks writes outside that dir,
   though this is not an OS-level sandbox. All edits are yours, after vetting.

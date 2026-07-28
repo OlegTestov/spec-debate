@@ -48,7 +48,8 @@ principle: a **better** result, not a **bigger** one — the skill actively resi
   - **Codex** (default): `npm install -g @openai/codex`, then `codex login status` (else `codex login`);
   - **opencode**: install per its docs with a configured provider (`opencode models` must be non-empty);
   - **Claude**: nothing extra — a fresh `claude -p` is always available and is the final fallback.
-- **`bash`** on PATH (plus **`pgrep`** for the Codex path — it enforces one `codex exec` at a time).
+- **`bash`** on PATH (plus **`pgrep`** for the Codex path — it enforces one `codex exec` at a time,
+  and **`python3`**, which the skill uses to verify the state file it writes).
   Present by default on **macOS and standard Linux**. **Windows: use WSL2** — native Windows isn't supported.
 
 ## Data & privacy

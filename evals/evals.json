@@ -8,7 +8,7 @@
       "expected_output": "Round 1: Claude and codex each independently propose improvements (the Codex prompt does NOT contain Claude's current-round proposal list); Claude merges both lists with veto (verifying against the actual file, not blindly), applies accepted ones via Edit, writes a skimmable report (accepted/partial/rejected with one-line reasons and source codex|own), and creates .url-shortener-spec.md.debate-state.json with round 1 recorded. Effort defaults to high (no effort word in the prompt).",
       "files": ["/tmp/spec-debate-test/url-shortener-spec.md"],
       "expectations": [
-        "A Codex critique ran via scripts/run_codex_critique.sh (exactly one codex exec at a time)",
+        "A Codex critique ran via scripts/run_critique.sh codex (which enforces one codex exec at a time)",
         "The Codex prompt file did NOT contain Claude's own current-round proposal list (independence preserved)",
         "The report and state include `own`-sourced findings that went through the same accept/partial/reject vetting as Codex's (rejected own proposals are reported whenever they occur)",
         "Every finding has a one-line reason; effort defaulted to high (no effort directive in the prompt)",
@@ -37,7 +37,7 @@
       "expectations": [
         "Triggered on a casual second-opinion request with neither 'debate' nor 'spec' in the prompt",
         "Explicitly chose and stated prompt-only mode",
-        "Exactly one codex pass via scripts/run_codex_critique.sh; no rounds were run",
+        "Exactly one codex pass via scripts/run_critique.sh codex; no rounds were run",
         "No new subject-specific .debate-state.json file was created for this question",
         "The inline report gives Codex's position, Claude's own vetted take, the prompt-file path, and a one-line 'sent to Codex' note"
       ]
@@ -76,7 +76,7 @@
         "Triggered on the explicit second-model hand-off: 'stress-test it with codex'",
         "Recognized IDEA/CLAIM/THESIS with no existing spec file and no source file",
         "Drafted a short position-spec artifact containing claim-as-goal, assumptions, constraints, strongest counter-arguments, conditions/limits, and open questions",
-        "Ran exactly two iterative rounds via scripts/run_codex_critique.sh using that position-spec as the debated artifact",
+        "Ran exactly two iterative rounds via scripts/run_critique.sh codex using that position-spec as the debated artifact",
         "Applied merge-with-veto to tighten the position-spec across rounds",
         ".debate-state.json was created/updated in the working dir and parses as one valid JSON document",
         "Did not enter CODE mode and did not stay prompt-only"
