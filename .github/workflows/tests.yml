@@ -7,13 +7,20 @@ on:
 # Only the hermetic suite runs here: it stubs the reviewer CLIs, so it needs no provider account and
 # no secrets. The e2e suites drive a real Claude session and are a manual pre-release gate.
 jobs:
+  shellcheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # Pinned by version on purpose: a distro shellcheck floats, and a release that adds a new check
+      # would fail this gate on code nobody touched.
+      - name: shellcheck v0.10.0
+        run: |
+          docker run --rm -v "$PWD:/mnt" -w /mnt koalaman/shellcheck:v0.10.0 \
+            -S warning scripts/*.sh tests/hermetic/*.sh tests/e2e/*.sh
+
   hermetic:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: shellcheck
-        run: |
-          sudo apt-get update -qq && sudo apt-get install -y -qq shellcheck
-          shellcheck -S warning scripts/*.sh tests/hermetic/*.sh tests/e2e/*.sh
       - name: hermetic suite
         run: bash tests/hermetic/run.sh
