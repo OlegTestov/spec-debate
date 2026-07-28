@@ -24,15 +24,39 @@ def frontmatter(p):
     return (m.group(1) if m else ""), text
 
 
-def desc_len(skill, limit):
+def description_of(skill):
+    """The description as a YAML parser sees it — the same view the marketplace validator measures.
+
+    Falls back to a regex when PyYAML is absent (CI images without it): that fallback understands the
+    plain and folded (`>-`) forms only, so it can disagree with the validator if the field is ever
+    rewritten as a literal `|` block. The parser is preferred precisely to keep the two in step.
+    """
     fm, _ = frontmatter(pathlib.Path(skill))
+    try:
+        import yaml
+        val = (yaml.safe_load(fm) or {}).get("description")
+        if isinstance(val, str):
+            return " ".join(val.split()), "yaml"
+    except ImportError:
+        pass
     m = re.search(r"^description:\s*(?:>-?\s*\n((?:[ \t]+.*\n?)+)|(.+))", fm, re.M)
     if not m:
+        return None, "regex"
+    raw = m.group(1) if m.group(1) else m.group(2)
+    return " ".join(raw.split()), "regex"
+
+
+def desc_len(skill, limit):
+    try:
+        cap = int(limit)
+    except ValueError:
+        return fail(f"limit must be an integer, got {limit!r}")
+    desc, how = description_of(skill)
+    if desc is None:
         return fail("no description in the frontmatter")
-    desc = " ".join(l.strip() for l in m.group(1).splitlines()) if m.group(1) else m.group(2).strip()
     n = len(desc)
-    print(f"description: {n} chars (limit {limit})")
-    return 0 if n <= int(limit) else fail(f"description is {n} chars, over the {limit} limit")
+    print(f"description: {n} chars (limit {cap}, measured via {how})")
+    return 0 if n <= cap else fail(f"description is {n} chars, over the {cap} limit")
 
 
 def refs(repo):
@@ -44,6 +68,9 @@ def refs(repo):
 
 
 def layout(readme, repo):
+    """Every name drawn in the README tree must exist. Names only, not their place in the tree: a file
+    drawn under the wrong parent still passes. That is deliberate — the check exists to catch a README
+    promising files an install does not carry, which is the failure that actually happened."""
     repo, text = pathlib.Path(repo), pathlib.Path(readme).read_text()
     block = re.search(r"```\n(spec-debate/\n(?:.*\n)*?)```", text)
     if not block:
@@ -61,6 +88,8 @@ def main(argv):
         return fail("usage: check_docs.py <subcommand> [args]")
     cmd, args = argv[1], argv[2:]
     try:
+        if not args:
+            return fail(f"{cmd}: missing argument(s)")
         if cmd == "desc-len":
             return desc_len(*args)
         if cmd == "refs":
@@ -70,7 +99,7 @@ def main(argv):
         if cmd == "json":
             json.loads(pathlib.Path(args[0]).read_text())
             return 0
-    except (TypeError, OSError, json.JSONDecodeError) as ex:
+    except (TypeError, IndexError, ValueError, OSError, json.JSONDecodeError) as ex:
         return fail(f"{cmd}: {ex}")
     return fail(f"unknown subcommand {cmd!r}")
 

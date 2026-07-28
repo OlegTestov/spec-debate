@@ -36,26 +36,43 @@ def after(args, flag):
     return None
 
 
-def route_of(logdir):
-    """What the stubs saw. A .stdin file means the CLI was actually fed a critique prompt."""
-    def argv(cli):
-        f = logdir / f"{cli}.argv"
-        return f.read_text().splitlines() if f.exists() else []
+SHAPE = {"codex": "exec", "opencode": "run", "claude": "-p"}
 
-    def ran(cli):
-        # a recorded stdin AND a critique-shaped argv: an auth probe like `codex login status` is not a run
-        shape = {"codex": "exec", "opencode": "run", "claude": "-p"}[cli]
-        return (logdir / f"{cli}.stdin").exists() and shape in argv(cli)
 
-    if ran("codex"):
-        eff = next((a.split("=", 1)[1].strip('"') for a in argv("codex") if "model_reasoning_effort" in a), "")
+def critique_calls(logdir, cli):
+    """Every critique-shaped call to one CLI, in order. Probes (`codex login status`) are not calls."""
+    numbered = sorted(logdir.glob(f"{cli}-*.argv"),
+                      key=lambda p: int(p.stem.rsplit("-", 1)[1]))
+    files = numbered or [f for f in [logdir / f"{cli}.argv"] if f.exists()]
+    out = []
+    for f in files:
+        args = f.read_text().splitlines()
+        if SHAPE[cli] in args:
+            out.append(args)
+    return out
+
+
+def describe(cli, args):
+    if cli == "codex":
+        eff = next((a.split("=", 1)[1].strip('"') for a in args if "model_reasoning_effort" in a), "")
         return "codex" if eff in ("high", "") else f"codex+{eff}"
-    if ran("opencode"):
-        m = after(argv("opencode"), "-m") or "?"
-        return "opencode:" + m.split("/")[-1]
-    if ran("claude"):
-        return "claude:" + (after(argv("claude"), "--model") or "default")
-    return "none"
+    if cli == "opencode":
+        return "opencode:" + (after(args, "-m") or "?").split("/")[-1]
+    return "claude:" + (after(args, "--model") or "default")
+
+
+def route_of(logdir):
+    """Where the skill routed. The FIRST critique call is the decision under test; a later call with a
+    different route (a retry, or a second harness) is appended rather than allowed to replace it."""
+    seen = []
+    for cli in ("codex", "opencode", "claude"):
+        for args in critique_calls(logdir, cli):
+            r = describe(cli, args)
+            if r not in seen:
+                seen.append(r)
+    if not seen:
+        return "none"
+    return seen[0] if len(seen) == 1 else seen[0] + " (+then " + ", ".join(seen[1:]) + ")"
 
 
 def score_case(d):
@@ -93,21 +110,25 @@ def score_case(d):
 
 def main(art):
     art = pathlib.Path(art)
-    rows, hard, soft, route_fail, cost, iso_problems = [], 0, 0, 0, 0.0, []
+    rows, hard, soft, route_fail, capped, cost, iso_problems = [], 0, 0, 0, 0, 0.0, []
     for d in sorted(p for p in art.iterdir() if p.is_dir() and (p / "meta.tsv").exists()):
         expect, name, want_route = (d / "meta.tsv").read_text().strip().split("\t")
         r = score_case(d)
         want_fire = expect.endswith("FIRE") and not expect.endswith("NOFIRE")
         fire_ok = (r["fired"] is True) == want_fire
-        # A fired case that never reached a reviewer within the turn cap is not a routing verdict.
         # Routing is only a verdict when the skill actually fired: a direct CLI call the agent made on
         # its own (e.g. the user asked for raw output) is not this skill routing anywhere.
-        route_ok = (not r["fired"]) or (r["route"] == want_route) or (want_fire and r["route"] == "none")
-        route_capped = want_fire and fire_ok and r["route"] == "none"
-        ok = fire_ok and route_ok
+        # A fired case that never reached the CLI within the turn cap proves nothing about routing — it
+        # is counted separately and NEVER as "as expected", or "routing asserted from argv" could rest
+        # on cases where no argv existed. Raise TURNS to convert these into real verdicts.
+        route_capped = bool(want_fire and fire_ok and r["route"] == "none")
+        route_ok = (not r["fired"]) or (r["route"] == want_route)
+        ok = fire_ok and (route_ok or route_capped)
         if not fire_ok:
             soft += 1 if expect.startswith("SOFT") else 0
             hard += 0 if expect.startswith("SOFT") else 1
+        elif route_capped:
+            capped += 1
         elif not route_ok:
             route_fail += 1
         cost += r["cost"] or 0
@@ -116,25 +137,26 @@ def main(art):
             iso_problems.append(f"{name}: {iso}")
         rows.append((ok, expect, name, want_route, r, route_capped))
 
-    for ok, expect, name, want_route, r, capped in rows:
-        mark = "ok  " if ok else ("SOFT" if expect.startswith("SOFT") else "FAIL")
+    for ok, expect, name, want_route, r, was_capped in rows:
+        mark = "CAP " if was_capped else ("ok  " if ok else ("SOFT" if expect.startswith("SOFT") else "FAIL"))
         got = "FIRED" if r["fired"] else ("mention-only" if r["mentioned_only"] else "quiet")
-        route = r["route"] + (" (turn-capped)" if capped else "")
+        route = r["route"] + (" (turn-capped)" if was_capped else "")
         print(f"  {mark} {name:26s} want={expect:11s}/{want_route:17s} got={got:12s}/{route:20s} "
               f"turns={r['turns']} ${r['cost']:.3f}")
         if not ok:
             print(f"       ↳ {r['text']}")
 
     n = len(rows)
-    print(f"\ntriggering: {n - hard - soft - route_fail}/{n} fully as expected — "
-          f"{hard} trigger fail, {route_fail} route fail, {soft} soft/ambiguous, ~${cost:.2f}")
+    print(f"\ntriggering: {n - hard - soft - route_fail - capped}/{n} fully as expected — "
+          f"{hard} trigger fail, {route_fail} route fail, {capped} fired but turn-capped "
+          f"(routing unproven), {soft} soft/ambiguous, ~${cost:.2f}")
     if iso_problems:
         print("ISOLATION PROBLEMS:")
         for p in iso_problems:
             print("  ", p)
     else:
         print("isolation verified per case from init events: candidate skill loaded; no user skills/plugins/MCP")
-    return 1 if (hard or route_fail or iso_problems) else 0
+    return 1 if (hard or route_fail or iso_problems) else 0   # capped runs are reported, not fatal
 
 
 if __name__ == "__main__":

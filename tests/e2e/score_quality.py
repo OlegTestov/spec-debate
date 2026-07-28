@@ -1,11 +1,17 @@
 #!/usr/bin/env python3
 """Score a quality run against the planted-defect answer keys.
 
-Coverage is counted from what the debate REPORTED (assistant text + the saved state), not from the
-edited artifact — the artifact's own wording could echo the seeded text and inflate the score.
+Coverage is counted from what the debate PRODUCED — its prose, the edits it applied, and the saved
+state — never from re-reading the seeded artifact, whose own wording would echo the input and inflate
+the score. Edits count because an applied fix is evidence the defect was surfaced; the seeds avoid the
+vocabulary of their fixes precisely so that a keyword hit means something.
 
-Beyond coverage, the checks that matter are the promises: code untouched in CODE mode, no source or
-secret in the prompts under privacy mode, a state file that parses, and no stray files in the repo.
+Coverage alone is not trustworthy, though: Claude contributes findings of its own (`source: own`), so a
+scenario could score full marks with the reviewer never called. Hence expect_reviewer — the recorded
+prompts must show the right harness actually running, at least once per round.
+
+Beyond that, the checks that matter are the promises: code untouched in CODE mode, no source or secret
+in the prompts under privacy mode, a state file that parses, and no stray files in the repo.
 """
 import hashlib
 import json
@@ -41,6 +47,19 @@ def sha(p):
     return hashlib.sha256(p.read_bytes()).hexdigest() if p.exists() else None
 
 
+def reviewer_runs(logdir):
+    """Recorded critique calls per harness. proxy.sh only writes .stdin for a real run, never a probe."""
+    shape = {"codex": "exec", "opencode": "run", "claude": "-p"}
+    runs = {}
+    for stdin in sorted(logdir.glob("*.stdin")):
+        cli = stdin.name.split("-")[0]
+        argv = (logdir / (stdin.stem + ".argv"))
+        args = argv.read_text().splitlines() if argv.exists() else []
+        if shape.get(cli) in args and stdin.stat().st_size > 0:
+            runs.setdefault(cli, []).append(stdin)
+    return runs
+
+
 def main(art):
     art = pathlib.Path(art)
     keys = json.loads((pathlib.Path(__file__).parent / "fixtures/answers.json").read_text())
@@ -65,6 +84,21 @@ def main(art):
         lines.append(f"\n=== {name}")
         lines.append(f"  defect coverage: {len(hits)}/{len(key['defects'])}"
                      + (f"   MISSED: {', '.join(missed)}" if missed else ""))
+
+        # the reviewer must have actually run, with the harness the prompt asked for
+        want_rev = key.get("expect_reviewer")
+        runs = reviewer_runs(d / "log")
+        if want_rev:
+            got = {cli: len(v) for cli, v in runs.items()}
+            n = len(runs.get(want_rev["harness"], []))
+            lines.append(f"  reviewer runs: {got or 'NONE'} (want >={want_rev['min_prompts']} on {want_rev['harness']})")
+            if n < want_rev["min_prompts"]:
+                problems.append(f"{name}: expected >={want_rev['min_prompts']} {want_rev['harness']} critique "
+                                f"call(s), recorded {n} — the coverage number would not be the debate's")
+            for cli in runs:
+                if cli != want_rev["harness"]:
+                    problems.append(f"{name}: critique also ran on '{cli}', but the request named "
+                                    f"{want_rev['harness']}")
 
         # state file must parse as ONE json document, and carry the rounds we asked for
         if states:
@@ -101,7 +135,7 @@ def main(art):
         # privacy mode: what actually went over the wire
         forbidden = key.get("must_not_appear_in_prompts") or []
         if forbidden:
-            sent = list((d / "log").glob("*.stdin"))
+            sent = [f for v in runs.values() for f in v]
             leaks = [(p.name, s) for p in sent for s in forbidden if s in p.read_text(errors="replace")]
             lines.append(f"  prompts recorded: {len(sent)}; leaks: {leaks or 'none'}")
             if not sent:

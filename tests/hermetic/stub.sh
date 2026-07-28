@@ -10,12 +10,26 @@
 #   STUB_MODELS_RC  exit code for `opencode models` (default 0)
 #   STUB_TOUCH      relative filename to create in the CWD — probes where the reviewer may write
 #   STUB_SLEEP      sleep this long before exiting (for the one-at-a-time guard case)
+#   STUB_HELP       what `--help` prints (default: lists the optional flags; empty = an older CLI)
 set -u
 name="$(basename "$0")"
 log="${STUB_LOG:?stub needs STUB_LOG}"
 mkdir -p "$log"
+# Two records per call: <name>.argv is the latest (what the single-call assertions read), and
+# <name>-<n>.argv keeps every call in order — with one file per CLI, a retry silently overwrote the
+# routing decision under test and the scorer reported the LAST call as if it were the first.
+seq=1; while [ -e "$log/$name-$seq.argv" ]; do seq=$((seq + 1)); done
 printf '%s\n' "$@" >"$log/$name.argv"
+printf '%s\n' "$@" >"$log/$name-$seq.argv"
 pwd >"$log/$name.pwd"
+
+# `--help` is how the dispatcher probes for optional flags. STUB_HELP="" emulates an older CLI that
+# supports none of them, so both branches of the probe are testable.
+if [ "${1:-}" = "--help" ]; then
+  printf '%s\n' "${STUB_HELP-  --setting-sources <sources>
+  --max-turns <n>}"
+  exit 0
+fi
 
 # `opencode models` is a catalog query: no stdin is attached, so never read it here.
 if [ "$name" = opencode ] && [ "${1:-}" = models ]; then
@@ -36,6 +50,7 @@ if [ "$is_run" = 0 ]; then
 fi
 
 cat >"$log/$name.stdin"                       # the dispatcher always redirects a file: EOF is safe
+cp "$log/$name.stdin" "$log/$name-$seq.stdin"
 [ -n "${STUB_SLEEP:-}" ] && sleep "$STUB_SLEEP"
 [ -n "${STUB_TOUCH:-}" ] && : >"$STUB_TOUCH"  # lands in whatever CWD the dispatcher chose
 if [ -n "${STUB_OUT_FILE:-}" ]; then cat "$STUB_OUT_FILE"; else printf '%s' "${STUB_OUT-}"; fi

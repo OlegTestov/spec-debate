@@ -18,8 +18,9 @@ FILTER="${1:-}"
 SBX="$(cd "$(mktemp -d "${TMPDIR:-/tmp}/spec-debate-hermetic.XXXXXX")" && pwd)"   # normalized: a TMPDIR with a trailing slash would break path asserts
 BIN="$SBX/bin"; mkdir -p "$BIN"
 export TMPDIR="$SBX/tmp"; mkdir -p "$TMPDIR"      # keeps the dispatcher's temp files inside the sandbox
-# Real codex/opencode/claude live in /opt/homebrew/bin and ~/.local/bin — both excluded here, so
-# only the stubs we install are reachable and a "CLI missing" case is a real missing CLI.
+# Only the system utility dirs: package managers install the real codex/opencode/claude elsewhere
+# (Homebrew, ~/.local/bin, npm prefixes), so leaving those out means only our stubs are reachable and
+# a "CLI missing" case is a genuinely missing CLI.
 BASE_PATH="/usr/bin:/bin:/usr/sbin:/sbin"
 PASS=0; FAIL=0; SKIP=0; FAILED_NAMES=()
 
@@ -74,6 +75,7 @@ _pass() { PASS=$((PASS + 1)); printf '  \033[32mok\033[0m   %s\n' "$CASE"; }
 # check <desc> <predicate...> — accumulates; verdict() closes the case
 CASE_ERR=""
 check() { local desc="$1"; shift; if "$@"; then :; else CASE_ERR="${CASE_ERR:+$CASE_ERR; }$desc"; fi; }
+not()   { ! "$@"; }   # for `check "..." not <predicate> …`
 verdict() { if [ -n "$CASE_ERR" ]; then _fail "$CASE_ERR (rc=$RC, stdout=$(head -c 200 "$OUT" | tr '\n' '|'), stderr=$(head -c 200 "$ERR" | tr '\n' '|'))"; else _pass; fi; CASE_ERR=""; }
 
 rc_is()        { [ "$RC" = "$1" ]; }
@@ -86,7 +88,9 @@ err_has()      { grep -qF -- "$1" "$ERR"; }
 argv_has()     { grep -qxF -- "$2" "$LOG/$1.argv" 2>/dev/null; }
 argv_lacks()   { ! grep -qF -- "$2" "$LOG/$1.argv" 2>/dev/null; }
 argv_after()   { # argv_after <cli> <flag> <expected-next-value>
-  awk -v f="$2" -v v="$3" 'p==1{exit ($0==v)?0:1} $0==f{p=1} END{if(p!=1) exit 1}' "$LOG/$1.argv" 2>/dev/null; }
+  # p==2 means a value was actually examined; a flag that is the LAST argument leaves p==1 and must
+  # fail, or an assertion would pass on a flag with no value after it.
+  awk -v f="$2" -v v="$3" 'p==1{p=2; exit ($0==v)?0:1} $0==f{p=1} END{if(p!=2) exit 1}' "$LOG/$1.argv" 2>/dev/null; }
 argv_after_glob() {  # argv_after_glob <cli> <flag> <glob for the next value>
   local v; v="$(awk -v f="$2" 'p==1{print; exit} $0==f{p=1}' "$LOG/$1.argv" 2>/dev/null)"
   [ -n "$v" ] || return 1

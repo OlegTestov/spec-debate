@@ -261,12 +261,21 @@ c "claude: happy path → CRITIQUE_EXIT:0" && {
   check "rc 0" rc_is 0; check "critique replayed" out_has "Missing rollback plan"
   check "marker last" out_last_is "CRITIQUE_EXIT:0"; verdict; }
 
-c "claude: reviewer is non-editing and MCP-less" && {
+c "claude: reviewer is non-editing, MCP-less and neutral" && {
   install_stub claude; STUB_OUT=f dispatch claude "$PROMPT"
   check "-p" argv_has claude "-p"
   check "--permission-mode plan" argv_after claude "--permission-mode" "plan"
   check "--strict-mcp-config" argv_has claude "--strict-mcp-config"
-  check "empty MCP set" argv_after claude "--mcp-config" '{"mcpServers":{}}'; verdict; }
+  check "empty MCP set" argv_after claude "--mcp-config" '{"mcpServers":{}}'
+  # A fresh instance still inherits the user's CLAUDE.md, skills and hooks unless told not to.
+  check "user settings dropped" argv_after claude "--setting-sources" "project"
+  check "agent loop bounded" argv_after claude "--max-turns" "30"; verdict; }
+
+c "claude: an older CLI without those flags still gets a critique" && {
+  install_stub claude; STUB_HELP="" STUB_OUT="1. Missing rollback plan." dispatch claude "$PROMPT"
+  check "rc 0" rc_is 0; check "critique returned" out_has "Missing rollback plan"
+  check "no --setting-sources" argv_lacks claude "--setting-sources"
+  check "no --max-turns" argv_lacks claude "--max-turns"; verdict; }
 
 c "claude: no --model when none named (inherits the caller's)" && {
   install_stub claude; STUB_OUT=f dispatch claude "$PROMPT"
@@ -275,6 +284,11 @@ c "claude: no --model when none named (inherits the caller's)" && {
 c "claude: named model is passed through" && {
   install_stub claude; STUB_OUT=f dispatch claude "$PROMPT" high "" opus
   check "--model opus" argv_after claude "--model" "opus"; verdict; }
+
+c "harness: argv_after itself rejects a flag with no value (self-check)" && {
+  install_stub claude; STUB_OUT=f dispatch claude "$PROMPT"
+  printf 'run\n--model\n' >"$LOG/claude.argv"     # flag present, value missing
+  check "must NOT report a match" not argv_after claude "--model" "opus"; verdict; }
 
 c "claude: zero exit with empty output is a failure, not consensus" && {
   install_stub claude; STUB_OUT="" dispatch claude "$PROMPT"

@@ -1,32 +1,153 @@
 {
-  "_note": "Answer keys for tests/e2e/quality.sh. The session never sees this file. Each defect is planted in the seeded artifact WITHOUT using its fix vocabulary, so a keyword hit in the debate report means the debate actually surfaced it rather than echoing the input.",
-
+  "_note": "Answer keys for tests/e2e/quality.sh. The session never sees this file. Each defect is planted in the seeded artifact WITHOUT using its fix vocabulary, so a keyword hit in the debate report means the debate actually surfaced it rather than echoing the input. expect_reviewer is what keeps the coverage number honest: without it, a scenario could score full marks on Claude's own findings with the reviewer never called at all.",
   "q1-spec-2rounds-codex": {
     "artifact": "plan.md",
     "want_state_rounds": 2,
     "defects": [
-      {"id": "no-signature-check", "any": ["signature", "hmac", "verif", "подпис", "spoof", "forge", "authenticat"]},
-      {"id": "no-idempotency", "any": ["idempot", "dedup", "duplicate", "повтор", "exactly-once", "double charge", "double-charge", "event id"]},
-      {"id": "float-money", "any": ["float", "decimal", "cents", "rounding", "precision", "numeric("]},
-      {"id": "no-http-timeout", "any": ["timeout", "hang", "indefinit", "deadline"]},
-      {"id": "retry-without-backoff", "any": ["backoff", "jitter", "exponential", "tight loop", "busy loop", "thundering"]},
-      {"id": "always-200-swallows-failures", "any": ["swallow", "lost event", "silently", "5xx", "nack", "mask the failure", "masks failure"]},
-      {"id": "unbounded-in-process-queue", "any": ["unbounded", "bounded", "dead-letter", "dlq", "backpressure", "durable", "persist", "memory growth", "oom"]}
-    ]
+      {
+        "id": "no-signature-check",
+        "any": [
+          "signature",
+          "hmac",
+          "verif",
+          "подпис",
+          "spoof",
+          "forge",
+          "authenticat"
+        ]
+      },
+      {
+        "id": "no-idempotency",
+        "any": [
+          "idempot",
+          "dedup",
+          "duplicate",
+          "повтор",
+          "exactly-once",
+          "double charge",
+          "double-charge",
+          "event id"
+        ]
+      },
+      {
+        "id": "float-money",
+        "any": [
+          "float",
+          "decimal",
+          "cents",
+          "rounding",
+          "precision",
+          "numeric("
+        ]
+      },
+      {
+        "id": "no-http-timeout",
+        "any": [
+          "timeout",
+          "hang",
+          "indefinit",
+          "deadline"
+        ]
+      },
+      {
+        "id": "retry-without-backoff",
+        "any": [
+          "backoff",
+          "jitter",
+          "exponential",
+          "tight loop",
+          "busy loop",
+          "thundering"
+        ]
+      },
+      {
+        "id": "always-200-swallows-failures",
+        "any": [
+          "swallow",
+          "lost event",
+          "silently",
+          "5xx",
+          "nack",
+          "mask the failure",
+          "masks failure"
+        ]
+      },
+      {
+        "id": "unbounded-in-process-queue",
+        "any": [
+          "unbounded",
+          "bounded",
+          "dead-letter",
+          "dlq",
+          "backpressure",
+          "durable",
+          "persist",
+          "memory growth",
+          "oom"
+        ]
+      }
+    ],
+    "expect_reviewer": {
+      "harness": "codex",
+      "min_prompts": 2
+    }
   },
-
   "q2-code-changespec-kimi": {
     "artifact": "ratelimit.py",
     "code_must_be_unchanged": "ratelimit.py",
     "changespec_required": true,
     "defects": [
-      {"id": "unbounded-bucket-dict", "any": ["unbounded", "grow", "evict", "leak", "cleanup", "expire", "memory"]},
-      {"id": "not-thread-safe", "any": ["lock", "race", "thread", "atomic", "concurren", "gil"]},
-      {"id": "wall-clock-not-monotonic", "any": ["monotonic", "wall clock", "wall-clock", "clock jump", "ntp", "time change"]},
-      {"id": "per-call-list-scan", "any": ["o(n)", "scan", "deque", "linear", "sliding window cost", "performance"]}
-    ]
+      {
+        "id": "unbounded-bucket-dict",
+        "any": [
+          "unbounded",
+          "grow",
+          "evict",
+          "leak",
+          "cleanup",
+          "expire",
+          "memory"
+        ]
+      },
+      {
+        "id": "not-thread-safe",
+        "any": [
+          "lock",
+          "race",
+          "thread",
+          "atomic",
+          "concurren",
+          "gil"
+        ]
+      },
+      {
+        "id": "wall-clock-not-monotonic",
+        "any": [
+          "monotonic",
+          "wall clock",
+          "wall-clock",
+          "clock jump",
+          "ntp",
+          "time change"
+        ]
+      },
+      {
+        "id": "per-call-list-scan",
+        "any": [
+          "o(n)",
+          "scan",
+          "deque",
+          "linear",
+          "sliding window cost",
+          "performance"
+        ]
+      }
+    ],
+    "expect_reviewer": {
+      "harness": "opencode",
+      "min_prompts": 1
+    }
   },
-
   "q3-privacy-codex": {
     "artifact": "billing.py",
     "must_not_appear_in_prompts": [
@@ -35,8 +156,32 @@
       "PROVIDER_SECRET ="
     ],
     "defects": [
-      {"id": "no-idempotency-key", "any": ["idempot", "dedup", "duplicate", "unique constraint", "exactly-once"]},
-      {"id": "charge-after-commit-not-atomic", "any": ["atomic", "commit", "two-phase", "outbox", "partial failure", "crash between", "transaction"]}
-    ]
+      {
+        "id": "no-idempotency-key",
+        "any": [
+          "idempot",
+          "dedup",
+          "duplicate",
+          "unique constraint",
+          "exactly-once"
+        ]
+      },
+      {
+        "id": "charge-after-commit-not-atomic",
+        "any": [
+          "atomic",
+          "commit",
+          "two-phase",
+          "outbox",
+          "partial failure",
+          "crash between",
+          "transaction"
+        ]
+      }
+    ],
+    "expect_reviewer": {
+      "harness": "codex",
+      "min_prompts": 1
+    }
   }
 }

@@ -4,13 +4,13 @@ Three suites, in the order you should run them: cheapest and most deterministic 
 
 | Suite | What it proves | Cost | Needs |
 |---|---|---|---|
-| `hermetic/run.sh` | the dispatcher's contract: routing, resolution, isolation, failure modes, shipped-file consistency | free, ~15s | `bash` only |
+| `hermetic/run.sh` | the dispatcher's contract: routing, resolution, isolation, failure modes, shipped-file consistency | free, ~15s | `bash`, `python3`, `pgrep` |
 | `e2e/trigger.sh` | the skill fires on the right phrasings (and stays quiet on the wrong ones), and Step 0 routes to the harness the user named | Claude turns only | `claude` |
 | `e2e/fallback.sh` | it works on machines with a different set of reviewer CLIs, and never silently swaps a harness you named | Claude turns only | `claude` |
 | `e2e/quality.sh` | a real debate finds planted defects, leaves code alone in CODE mode, and never leaks source or secrets in privacy mode | real reviewer calls | `claude` + `codex` + `opencode` |
 
 ```bash
-bash tests/hermetic/run.sh              # all 64 cases (one is skipped when run as root)
+bash tests/hermetic/run.sh              # all 67 cases (one is skipped when run as root)
 bash tests/hermetic/run.sh opencode     # filter by case-name substring
 
 bash tests/e2e/trigger.sh               # 22 phrasings, 4 at a time
@@ -47,5 +47,8 @@ carries known defects, planted without using the vocabulary of their fix, so a k
 debate's report means the debate surfaced the defect rather than echoing the input. Coverage is read
 from the report and the saved state, never from the edited artifact.
 
-Artifacts (transcripts, recorded prompts, before/after trees) land in `tests/e2e/artifacts/` and are
-gitignored — keep them when a case fails; they are the evidence.
+Artifacts (transcripts, recorded prompts, before/after trees) land in a temp dir that each run prints
+on its first line; pass `ART=<path>` to put them somewhere you choose. The default is deliberately
+**outside the repo**: a candidate plugin is built by copying the shipped files, and an artifacts dir
+inside the tree used to end up copied into the candidate (GNU `cp` refuses it outright, BSD `cp`
+quietly dragged previous runs' recorded prompts along).

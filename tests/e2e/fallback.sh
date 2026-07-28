@@ -12,14 +12,13 @@ set -uo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO="$(cd "$HERE/../.." && pwd)"
 CLAUDE_BIN="$(command -v claude)"
-FILTER="${1:-}"; TURNS="${TURNS:-5}"
-ART="${ART:-$HERE/artifacts/fallback-$(date +%H%M%S)}"; mkdir -p "$ART"; ART="$(cd "$ART" && pwd)"
+# A capped run counts as a FAILURE here (the route IS the assertion), so the cap must be generous.
+FILTER="${1:-}"; TURNS="${TURNS:-12}"
+# shellcheck source=tests/e2e/lib.sh
+. "$HERE/lib.sh"
+ART="${ART:-$(default_art fallback)}"; mkdir -p "$ART"; ART="$(cd "$ART" && pwd)"
 
-PLUG="$ART/plug"; mkdir -p "$PLUG/.claude-plugin" "$PLUG/skills"
-rm -rf "$PLUG/skills/spec-debate"; cp -R "$REPO" "$PLUG/skills/spec-debate"
-rm -rf "$PLUG/skills/spec-debate/.git" "$PLUG/skills/spec-debate/tests"
-printf '{ "name": "spec-debate-candidate", "version": "1.1.0", "description": "spec-debate under test" }\n' \
-  >"$PLUG/.claude-plugin/plugin.json"
+PLUG="$ART/plug"; build_candidate_plugin "$REPO" "$PLUG"
 
 export STUB_OUT='1. MAJOR — dropping the old columns in the same release leaves no way back.
 2. MAJOR — a 40M-row backfill in one pass will hold locks long enough to stall writes.'
@@ -31,7 +30,7 @@ opencode-go/glm-5.2'
 CASES=(
 "fb-noname-no-codex|opencode claude|opencode:kimi-k3|get a second opinion on plan.md from someone"
 "fb-noname-only-claude|claude|claude:default|get a second opinion on plan.md from someone"
-"fb-named-codex-missing|opencode claude|none|посоветуйся с кодексом по плану в plan.md"
+"fb-named-codex-missing|opencode claude|none|consult codex about the plan in plan.md"
 )
 # Text the run MUST contain, by case name (kept out of CASES because a regex needs "|";
 # a case statement rather than an associative array, so this still runs on bash 3.2 / macOS).
@@ -47,7 +46,8 @@ for row in "${CASES[@]}"; do
   # FILTER is a regex ("a|b" runs both); empty means all (bash 3.2 rejects an empty =~ pattern)
   [ -z "$FILTER" ] || [[ "$name" =~ $FILTER ]] || continue
   dir="$ART/$name"; mkdir -p "$dir/cwd" "$dir/log" "$dir/bin"
-  for n in $stubs; do cp "$REPO/tests/hermetic/stub.sh" "$dir/bin/$n"; chmod +x "$dir/bin/$n"; done
+  # shellcheck disable=SC2086   # $stubs is a deliberate word-split list
+  install_stub_clis "$REPO" "$dir/bin" $stubs
   cat >"$dir/cwd/plan.md" <<'MD'
 # Plan: migrate orders to the new schema
 

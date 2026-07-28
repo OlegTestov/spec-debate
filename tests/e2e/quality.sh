@@ -19,14 +19,12 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO="$(cd "$HERE/../.." && pwd)"
 CLAUDE_BIN="$(command -v claude)"
 REAL_CODEX="$(command -v codex || true)"; REAL_OPENCODE="$(command -v opencode || true)"
-FILTER="${1:-}"; TURNS="${TURNS:-40}"
-ART="${ART:-$HERE/artifacts/quality-$(date +%H%M%S)}"; mkdir -p "$ART"; ART="$(cd "$ART" && pwd)"
+FILTER="${1:-}"; TURNS="${TURNS:-45}"
+# shellcheck source=tests/e2e/lib.sh
+. "$HERE/lib.sh"
+ART="${ART:-$(default_art quality)}"; mkdir -p "$ART"; ART="$(cd "$ART" && pwd)"
 
-PLUG="$ART/plug"; mkdir -p "$PLUG/.claude-plugin" "$PLUG/skills"
-rm -rf "$PLUG/skills/spec-debate"; cp -R "$REPO" "$PLUG/skills/spec-debate"
-rm -rf "$PLUG/skills/spec-debate/.git" "$PLUG/skills/spec-debate/tests"
-printf '{ "name": "spec-debate-candidate", "version": "1.1.0", "description": "spec-debate under test" }\n' \
-  >"$PLUG/.claude-plugin/plugin.json"
+PLUG="$ART/plug"; build_candidate_plugin "$REPO" "$PLUG"
 
 BIN="$ART/bin"; mkdir -p "$BIN"
 for n in codex opencode; do cp "$HERE/proxy.sh" "$BIN/$n"; chmod +x "$BIN/$n"; done
@@ -89,7 +87,7 @@ PY
 
 # scenario|seed fn|prompt
 SCENARIOS=(
-"q1-spec-2rounds-codex|seed_q1|прогони plan.md через дебат с кодексом — два раунда — и улучши сам файл"
+"q1-spec-2rounds-codex|seed_q1|run plan.md through a debate with codex — two rounds — and improve the file itself"
 "q2-code-changespec-kimi|seed_q2|think it through with kimi before I refactor ratelimit.py — draft the change-spec first, don't touch the code yet"
 "q3-privacy-codex|seed_q3|debate the redesign of billing.py with codex, but privacy mode — don't send the code, just an abstracted summary. The goal is idempotent invoice creation so retries can't double-charge."
 )
