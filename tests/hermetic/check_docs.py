@@ -6,6 +6,7 @@ Subcommands (each exits 0 = pass, 1 = fail with a reason on stderr):
   refs <repo>                 every helper script SKILL.md invokes must exist
   layout <README> <repo>      every file drawn in the README layout block must exist
   json <file>                 the file must parse as one JSON document
+  scenarios <tests/e2e dir>   quality scenario dirs and answer keys must be the same set
 """
 import json
 import pathlib
@@ -83,6 +84,29 @@ def layout(readme, repo):
     return fail(f"README layout lists things that do not exist: {missing}") if missing else 0
 
 
+def scenarios(e2e):
+    """The quality suite is data-driven: a key with no directory would silently never run, and a
+    directory with no key scores as "no answer key" only after a paid session. Catch both here, free."""
+    e2e = pathlib.Path(e2e)
+    answers = json.loads((e2e / "fixtures/answers.json").read_text())
+    keys = {k for k in answers if not k.startswith("_")}
+    base = e2e / "fixtures/scenarios"
+    dirs = {p.name for p in base.iterdir() if p.is_dir() and not p.name.startswith(".")} if base.is_dir() else set()
+    problems = []
+    if keys - dirs:
+        problems.append(f"answer keys with no scenario dir: {sorted(keys - dirs)}")
+    if dirs - keys:
+        problems.append(f"scenario dirs with no answer key: {sorted(dirs - keys)}")
+    for d in sorted(dirs):
+        if not (base / d / "prompt.txt").is_file():
+            problems.append(f"{d}: no prompt.txt")
+        seed = base / d / "seed"
+        if not seed.is_dir() or not any(seed.iterdir()):
+            problems.append(f"{d}: seed/ is missing or empty")
+    print(f"quality scenarios: {len(dirs)} directories, {len(keys)} answer keys")
+    return fail("; ".join(problems)) if problems else 0
+
+
 def main(argv):
     if len(argv) < 2:
         return fail("usage: check_docs.py <subcommand> [args]")
@@ -96,6 +120,8 @@ def main(argv):
             return refs(*args)
         if cmd == "layout":
             return layout(*args)
+        if cmd == "scenarios":
+            return scenarios(*args)
         if cmd == "json":
             json.loads(pathlib.Path(args[0]).read_text())
             return 0

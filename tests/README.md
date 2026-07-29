@@ -10,7 +10,7 @@ Four suites, in the order you should run them: cheapest and most deterministic f
 | `e2e/quality.sh` | a real debate finds planted defects, leaves code alone in CODE mode, and never leaks source or secrets in privacy mode | real reviewer calls | `claude` + `codex` + `opencode` |
 
 ```bash
-bash tests/hermetic/run.sh              # all 67 cases (one is skipped when run as root)
+bash tests/hermetic/run.sh              # all 68 cases (one is skipped when run as root)
 bash tests/hermetic/run.sh opencode     # filter by case-name substring
 
 bash tests/e2e/trigger.sh               # 28 phrasings, 4 at a time
@@ -21,6 +21,26 @@ bash tests/e2e/quality.sh q3            # one scenario
 
 Only the hermetic suite runs in CI (it needs no accounts): automatically on GitHub, as a manual job in
 the plugin marketplace repo. The e2e suites cost provider calls, so they are a pre-release gate you run.
+
+## Adding a quality scenario
+
+Scenarios are data. Create a directory and an answer key — no script changes:
+
+```
+fixtures/scenarios/<name>/prompt.txt     # the request, exactly as a user would phrase it
+fixtures/scenarios/<name>/seed/…         # files copied into the sandbox (subdirectories are fine)
+fixtures/answers.json  → "<name>": { defects, expect_reviewer, … }
+```
+
+Plant each defect **without the vocabulary of its fix**, and list that vocabulary as the defect's
+`any` keywords — that is what makes a hit mean "the debate found it". `expect_reviewer` names the
+harness the prompt asks for and the minimum number of critique calls. Optional per-scenario keys:
+`want_state_rounds`, `code_must_be_unchanged`, `changespec_required`, `must_not_appear_in_prompts`.
+Scored paths (`artifact`, `code_must_be_unchanged`) are resolved relative to the sandbox and may be
+nested; a required change-spec is looked for at the top level.
+
+The hermetic suite fails if the scenario directories and the answer keys are not the same set, so a
+half-added scenario costs 15 free seconds rather than a paid run.
 
 ## How the runtime suites stay honest
 

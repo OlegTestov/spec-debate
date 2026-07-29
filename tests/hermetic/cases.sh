@@ -328,6 +328,10 @@ c "docs: README layout matches what ships (ru)" && {
   static; check "layout files exist" python3 "$HERE/check_docs.py" layout "$SKILL_DIR/README_ru.md" "$SKILL_DIR"
   verdict; }
 
+c "docs: quality scenarios and answer keys are the same set" && {
+  static; check "sets match, each scenario complete" python3 "$HERE/check_docs.py" scenarios "$SKILL_DIR/tests/e2e"
+  verdict; }
+
 c "docs: evals.json is one valid JSON document" && {
   static; check "parses" python3 "$HERE/check_docs.py" json "$SKILL_DIR/evals/evals.json"
   verdict; }
