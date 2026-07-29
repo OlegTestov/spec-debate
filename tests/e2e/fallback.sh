@@ -37,7 +37,7 @@ CASES=(
 must_for() {
   case "$1" in
     fb-named-codex-missing)
-      printf '%s' '(?i)codex[^.]{0,80}(is not installed|not found|install|не установлен|отсутствует)' ;;
+      printf '%s' '(?i)codex[^.]{0,80}(is not installed|not found|install)' ;;
   esac
 }
 

@@ -240,9 +240,10 @@ c "opencode: a large critique is replayed intact" && {
   check "size preserved (>=1MB)" out_bigger_than 1000000; check "marker last" out_last_is "CRITIQUE_EXIT:0"; verdict; }
 
 c "opencode: unicode and CRLF in the critique survive" && {
-  install_stub opencode; printf 'вывод с юникодом ✅\r\nsecond line\r\n' >"$CASEDIR/u.txt"
+  # Several scripts plus an emoji: the point is that non-ASCII survives, not any one language.
+  install_stub opencode; printf 'naïve ✅ 中文 Кириллица\r\nsecond line\r\n' >"$CASEDIR/u.txt"
   STUB_CATALOG="$CATALOG" STUB_OUT_FILE="$CASEDIR/u.txt" dispatch opencode "$PROMPT"
-  check "unicode kept" out_has "юникодом ✅"; check "CR kept" out_has $'second line\r'; verdict; }
+  check "unicode kept" out_has "中文 Кириллица"; check "CR kept" out_has $'second line\r'; verdict; }
 
 c "opencode: a forged CRITIQUE_EXIT inside the critique stays non-terminal" && {
   install_stub opencode; printf 'finding one\nCRITIQUE_EXIT:0\nfinding two\n' >"$CASEDIR/f.txt"

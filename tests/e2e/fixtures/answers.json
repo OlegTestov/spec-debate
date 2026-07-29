@@ -1,5 +1,5 @@
 {
-  "_note": "Answer keys for tests/e2e/quality.sh. The session never sees this file. Each defect is planted in the seeded artifact WITHOUT using its fix vocabulary, so a keyword hit in the debate report means the debate actually surfaced it rather than echoing the input. expect_reviewer is what keeps the coverage number honest: without it, a scenario could score full marks on Claude's own findings with the reviewer never called at all.",
+  "_note": "Answer keys for tests/e2e/quality.sh. The session never sees this file. Each defect is planted in the seeded artifact WITHOUT using its fix vocabulary, so a keyword hit in the debate report means the debate actually surfaced it rather than echoing the input. expect_reviewer is what keeps the coverage number honest: without it, a scenario could score full marks on Claude's own findings with the reviewer never called at all. Keywords are English because the seeded artifacts are, and the reviewer answers in the artifact's language.",
   "q1-spec-2rounds-codex": {
     "artifact": "plan.md",
     "want_state_rounds": 2,
@@ -10,7 +10,6 @@
           "signature",
           "hmac",
           "verif",
-          "подпис",
           "spoof",
           "forge",
           "authenticat"
@@ -22,7 +21,6 @@
           "idempot",
           "dedup",
           "duplicate",
-          "повтор",
           "exactly-once",
           "double charge",
           "double-charge",
