@@ -86,6 +86,25 @@ c "codex: effort max maps to xhigh" && {
   install_stub codex; STUB_OUT=x dispatch codex "$PROMPT" max
   check "xhigh passed to codex" argv_has codex 'model_reasoning_effort="xhigh"'; verdict; }
 
+c "codex: an explicit high is still passed as high" && {
+  install_stub codex; STUB_OUT=x dispatch codex "$PROMPT" high
+  check "high passed to codex" argv_has codex 'model_reasoning_effort="high"'; verdict; }
+
+c "codex: no effort requested → no -c, so the user's own config decides" && {
+  # Forcing a default here would silently downgrade anyone who configured a higher effort.
+  install_stub codex; STUB_OUT=x dispatch codex "$PROMPT"
+  check "no reasoning-effort override" argv_lacks codex "model_reasoning_effort"
+  check "no -c at all" argv_lacks_flag codex "-c"
+  check "still ran" out_last_is "CRITIQUE_EXIT:0"; verdict; }
+
+c "codex: no model requested → no -m, so the configured model stands" && {
+  install_stub codex; STUB_OUT=x dispatch codex "$PROMPT"
+  check "no -m" argv_lacks_flag codex "-m"; verdict; }
+
+c "codex: a named model is passed through unvalidated" && {
+  install_stub codex; STUB_OUT=x dispatch codex "$PROMPT" "" "" gpt-5.4-mini
+  check "-m gpt-5.4-mini" argv_after codex "-m" "gpt-5.4-mini"; verdict; }
+
 c "codex: effort xhigh alias accepted" && {
   install_stub codex; STUB_OUT=x dispatch codex "$PROMPT" xhigh
   check "rc 0" rc_is 0; check "xhigh passed" argv_has codex 'model_reasoning_effort="xhigh"'; verdict; }
@@ -210,6 +229,10 @@ c "opencode: runs in a throwaway dir and leaves the workdir clean" && {
 c "opencode: temp files are cleaned up on exit" && {
   install_stub opencode; STUB_CATALOG="$CATALOG" STUB_OUT=f dispatch opencode "$PROMPT"
   check "no leftovers in TMPDIR" no_glob "$TMPDIR/spec-debate-oc*"; verdict; }
+
+c "opencode: no effort requested → no --variant" && {
+  install_stub opencode; STUB_CATALOG="$CATALOG" STUB_OUT=f dispatch opencode "$PROMPT"
+  check "no --variant" argv_lacks_flag opencode "--variant"; check "still ran" out_last_is "CRITIQUE_EXIT:0"; verdict; }
 
 c "opencode: effort low → variant minimal" && {
   install_stub opencode; STUB_CATALOG="$CATALOG" STUB_OUT=f dispatch opencode "$PROMPT" low

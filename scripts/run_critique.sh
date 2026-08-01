@@ -5,12 +5,13 @@
 # stays harness-agnostic. stdout = the critique, then a final line `CRITIQUE_EXIT:<n>`.
 #
 #   harness : codex | opencode | claude
-#   effort  : low | medium | high | max   (default high; "xhigh" accepted as an alias for max)
+#   effort  : low | medium | high | max ("xhigh" = alias for max). OMITTED means omitted all the way
+#             down: each harness then uses its own configured effort rather than one we invented.
 #   workdir : dir the reviewer may read (read-only). codex = sandbox root; claude = cwd; opencode
 #             ignores it (runs in a throwaway temp dir). Default = the prompt file's dir.
-#   model   : optional. For opencode: a full `provider/model` id, or a family name (kimi/glm/…)
-#             resolved to the newest version in the catalog. For claude: a --model value. Ignored
-#             for codex (it trusts its own default).
+#   model   : optional; omitted = the harness's configured model. For opencode: a full `provider/model`
+#             id, or a family name (kimi/glm/…) resolved to the newest version in the catalog. For
+#             claude and codex: passed through as-is (codex model names are not validated here).
 #
 # The prompt is ALWAYS fed via STDIN (never argv): keeps the spec text off the process list and
 # avoids ARG_MAX on large embeds. Preflight failures print an `ERROR:` line (no CRITIQUE_EXIT marker)
@@ -21,12 +22,12 @@ set -uo pipefail
 
 HARNESS="${1:?usage: run_critique.sh <codex|opencode|claude> <prompt_file> [effort] [workdir] [model]}"
 PROMPT_FILE="${2:?prompt_file required}"
-EFFORT="${3:-high}"
+EFFORT="${3:-}"          # empty = inherit whatever the harness is configured with
 WORKDIR="${4:-$(cd "$(dirname "$PROMPT_FILE")" 2>/dev/null && pwd)}"
 MODEL="${5:-}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-case "$EFFORT" in low|medium|high|max|xhigh) ;; *) echo "ERROR: invalid effort '$EFFORT' (low|medium|high|max)." >&2; exit 5 ;; esac
+case "$EFFORT" in ""|low|medium|high|max|xhigh) ;; *) echo "ERROR: invalid effort '$EFFORT' (low|medium|high|max, or empty to inherit)." >&2; exit 5 ;; esac
 [ -r "$PROMPT_FILE" ] || { echo "ERROR: prompt file not readable: $PROMPT_FILE" >&2; exit 4; }
 [ -d "$WORKDIR" ]     || { echo "ERROR: workdir not found: $WORKDIR" >&2; exit 6; }
 
@@ -66,7 +67,7 @@ case "$HARNESS" in
     out="$(mktemp "${TMPDIR:-/tmp}/spec-debate-cx.XXXXXX")"; err="$(mktemp "${TMPDIR:-/tmp}/spec-debate-cx.XXXXXX")"
     body="$(mktemp "${TMPDIR:-/tmp}/spec-debate-cx.XXXXXX")"
     trap 'rm -f "$out" "$err" "$body"' EXIT
-    bash "$SCRIPT_DIR/run_codex_critique.sh" "$PROMPT_FILE" "$EFFORT" "$WORKDIR" >"$out" 2>"$err"; hrc=$?
+    bash "$SCRIPT_DIR/run_codex_critique.sh" "$PROMPT_FILE" "$EFFORT" "$WORKDIR" "$MODEL" >"$out" 2>"$err"; hrc=$?
     # The helper's last line is its own CODEX_EXIT marker. Split it off and hand the body to
     # emit_result, so the codex path gets the SAME empty-output guard as the others — otherwise a
     # codex that exits 0 with no critique would read as "no findings" instead of a failed pass.
@@ -96,12 +97,13 @@ case "$HARNESS" in
     # opencode's default agent is NOT sandboxed read-only. Run it in a THROWAWAY temp dir (never the
     # repo): context is embedded and the critique never asks for edits, so <workdir> is unused here.
     # opencode effort is coarse — minimal|high|max only (medium maps to high; an invalid variant is
-    # silently ignored by opencode).
+    # silently ignored by opencode). No effort requested = no --variant, same rule as codex.
+    variant=""
     case "$EFFORT" in low) variant=minimal ;; medium|high) variant=high ;; max|xhigh) variant=max ;; esac
     oc_dir="$(mktemp -d "${TMPDIR:-/tmp}/spec-debate-ocdir.XXXXXX")"
     out="$(mktemp "${TMPDIR:-/tmp}/spec-debate-oc.XXXXXX")"; err="$(mktemp "${TMPDIR:-/tmp}/spec-debate-oc.XXXXXX")"
     trap 'rm -rf "$oc_dir"; rm -f "$out" "$err"' EXIT
-    opencode run -m "$model" --variant "$variant" --dir "$oc_dir" < "$PROMPT_FILE" >"$out" 2>"$err"; code=$?
+    opencode run -m "$model" ${variant:+--variant "$variant"} --dir "$oc_dir" < "$PROMPT_FILE" >"$out" 2>"$err"; code=$?
     emit_result "$code" "$out" "$err" "opencode ($model)"
     ;;
 

@@ -87,6 +87,8 @@ out_bigger_than() { [ "$(wc -c <"$OUT")" -ge "$1" ]; }
 err_has()      { grep -qF -- "$1" "$ERR"; }
 argv_has()     { grep -qxF -- "$2" "$LOG/$1.argv" 2>/dev/null; }
 argv_lacks()   { ! grep -qF -- "$2" "$LOG/$1.argv" 2>/dev/null; }
+# whole-argument absence: "-c" is a substring of "--skip-git-repo-check", so flags need exact matching
+argv_lacks_flag() { ! grep -qxF -- "$2" "$LOG/$1.argv" 2>/dev/null; }
 argv_after()   { # argv_after <cli> <flag> <expected-next-value>
   # p==2 means a value was actually examined; a flag that is the LAST argument leaves p==1 and must
   # fail, or an assertion would pass on a flag with no value after it.

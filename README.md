@@ -111,7 +111,10 @@ spec-debate/
 ```
 
 Effort levels are **low / medium / high / max** and map per harness: codex spans all four (max→xhigh);
-opencode is coarse (minimal / high / max, so medium≈high); claude has no effort knob. Want another
+opencode is coarse (minimal / high / max, so medium≈high); claude has no effort knob. Ask for a level
+and it is passed; ask for none and each harness uses **its own configured effort** — spec-debate does
+not quietly override your `~/.codex/config.toml`. (Model and effort are what it inherits; the read-only
+sandbox, the working directory and the MCP-less reviewer session are set by the skill either way.) Want another
 round? Invoke again — it picks up the state. You can add free-form instructions, e.g. "run 3
 rounds" or "keep going until no significant findings remain".
 

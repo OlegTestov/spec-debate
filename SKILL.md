@@ -46,7 +46,8 @@ gap/risk/UX need justifies it. One invocation = one round; state persists in
 1. **Pick the reviewer harness `<H>` + model** from the request (the debate needs an *independent*
    second opinion):
    - **Named model** — gpt/гпт→codex; kimi/glm/deepseek/qwen or a full `provider/model`→opencode;
-     opus/opus·sonnet→claude. Use that harness at its latest version.
+     opus/opus·sonnet→claude. A *specific* model id (`gpt-5.4-mini`, `opencode-go/kimi-k3`, `opus`) is
+     passed through; a bare family name means "that harness, its configured model".
    - **Named harness** — codex/кодекс→codex; opencode/опенкод→opencode (default model: latest kimi);
      claude code/клод код→claude (a fresh instance).
    - **No name** (external review still requested) — default **codex → opencode → claude**: the first
@@ -58,8 +59,10 @@ gap/risk/UX need justifies it. One invocation = one round; state persists in
    claude→a fresh instance is available. If none of the three is usable, stop: "No reviewer harness
    found — install one of codex / opencode / claude."
 3. Parse reasoning effort → abstract `low|medium|high|max` (`--high|--medium|--low|--max`, `effort=…`,
-   "maximum reasoning depth"→`max`; legacy "xhigh"→`max`). Default `high`; `max` is much slower, on
-   explicit request only. (`run_critique.sh` maps it per harness; claude has no effort knob.)
+   "maximum reasoning depth"→`max`; legacy "xhigh"→`max`). **No request = pass nothing**, and the
+   harness uses its own configured effort — overriding a setting the user never mentioned would
+   silently downgrade someone who configured a higher one. `max` is slower, on explicit request only.
+   (`run_critique.sh` maps a requested level per harness; claude has no effort knob.)
 4. Parse a round directive (a count like "run 3 rounds", or "until no significant findings remain");
    default one round. Parse a `thorough` request (cross-critique, Step 3c).
 
@@ -198,7 +201,8 @@ a guessed or remembered path.
 - **Always via the dispatcher, never raw.** It feeds the prompt via **stdin** (keeps the spec text off
   the process list; no ARG_MAX limit on large embeds), preflights the CLI, maps effort per harness, and
   — for codex — delegates to the hardened `run_codex_critique.sh`. `<H>` and `[model]` come
-  from Step 0; `<effort>` is the abstract level.
+  from Step 0; `<effort>` is the abstract level — pass it EMPTY (`""`) when the user asked for no
+  particular effort, so the reviewer runs at whatever its own configuration says.
 - `<workdir>`: the material's repo/dir root when it's local (codex reads it read-only — see Conveying the
   material); else the prompt file's dir. codex uses it as the sandbox root, claude as its cwd; opencode
   ignores it and runs in a throwaway temp dir (its context is always embedded).
@@ -246,7 +250,7 @@ churn. Don't leave alternatives "to decide later"; make the call now.
 
 ## Step 6 — Report (make progress visible)
 ```
-## spec-debate — round N · <reviewer> (<provider>, <effort>) · `path` · M proposals (reviewer K · own J)
+## spec-debate — round N · <reviewer> (<provider>, <effort or "effort: inherited">) · `path` · M proposals (reviewer K · own J)
 ### Accepted (…)
 - [critical] <title> — what changed · (reviewer|own)
 ### Partial (…)
