@@ -48,14 +48,22 @@ def sha(p):
 
 
 def reviewer_runs(logdir):
-    """Recorded critique calls per harness. proxy.sh only writes .stdin for a real run, never a probe."""
+    """Critique calls that actually produced a critique, per harness.
+
+    A call counts only if the CLI was invoked in critique shape (not a probe — proxy.sh records only
+    real calls anyway) AND it wrote something back. A provider that refuses — out of balance,
+    rate-limited — still receives the prompt and exits 0 with empty output, so counting sent prompts
+    would credit the debate with coverage that came from Claude's own findings.
+    """
     shape = {"codex": "exec", "opencode": "run", "claude": "-p"}
     runs = {}
     for stdin in sorted(logdir.glob("*.stdin")):
         cli = stdin.name.split("-")[0]
-        argv = (logdir / (stdin.stem + ".argv"))
-        args = argv.read_text().splitlines() if argv.exists() else []
-        if shape.get(cli) in args and stdin.stat().st_size > 0:
+        args = (logdir / (stdin.stem + ".argv"))
+        argv = args.read_text().splitlines() if args.exists() else []
+        reply = logdir / (stdin.stem + ".stdout")
+        answered = reply.exists() and reply.stat().st_size > 0
+        if shape.get(cli) in argv and stdin.stat().st_size > 0 and answered:
             runs.setdefault(cli, []).append(stdin)
     return runs
 
@@ -91,10 +99,12 @@ def main(art):
         if want_rev:
             got = {cli: len(v) for cli, v in runs.items()}
             n = len(runs.get(want_rev["harness"], []))
-            lines.append(f"  reviewer runs: {got or 'NONE'} (want >={want_rev['min_prompts']} on {want_rev['harness']})")
+            lines.append(f"  reviewer runs that answered: {got or 'NONE'} "
+                         f"(want >={want_rev['min_prompts']} on {want_rev['harness']})")
             if n < want_rev["min_prompts"]:
                 problems.append(f"{name}: expected >={want_rev['min_prompts']} {want_rev['harness']} critique "
-                                f"call(s), recorded {n} — the coverage number would not be the debate's")
+                                f"call(s) that returned something, recorded {n} — the coverage number "
+                                f"would be Claude's own findings, not the debate's")
             for cli in runs:
                 if cli != want_rev["harness"]:
                     problems.append(f"{name}: critique also ran on '{cli}', but the request named "

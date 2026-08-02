@@ -3,7 +3,7 @@
 # runs the real binary unchanged. Used by the quality suite, where the critique must be real but we
 # still need to assert WHAT was sent (e.g. privacy mode must not leak source code or secrets).
 #
-#   PROXY_LOG    dir for <name>-<n>.{argv,stdin}
+#   PROXY_LOG    dir for <name>-<n>.{argv,stdin,stdout}
 #   REAL_<name>  absolute path to the real binary (e.g. REAL_codex=/opt/homebrew/bin/codex)
 set -uo pipefail
 name="$(basename "$0")"
@@ -21,5 +21,7 @@ for a in "$@"; do
 done
 [ "$is_run" = 0 ] && exec "$real" "$@"
 
-tee "$log/$name-$i.stdin" | "$real" "$@"
+# Record the reply too, not just the prompt: a provider that refuses (out of balance, rate-limited)
+# still receives a prompt, and "the reviewer was called" would otherwise read as "the reviewer answered".
+tee "$log/$name-$i.stdin" | "$real" "$@" | tee "$log/$name-$i.stdout"
 exit "${PIPESTATUS[1]}"

@@ -13,7 +13,8 @@
 #   bash tests/e2e/trigger.sh                 # all cases
 #   bash tests/e2e/trigger.sh kimi            # only cases whose name matches
 #   MODEL=sonnet bash tests/e2e/trigger.sh    # pin a model (default: the CLI's own default)
-#   PAR=4 TURNS=10 bash tests/e2e/trigger.sh   # a lower cap can end a case before it reaches the CLI
+#   PAR=4 TURNS=24 bash tests/e2e/trigger.sh   # the cap is a ceiling, not a budget: too low ends a
+#                                             # case before it reaches the CLI and the route goes unproven
 #   REPEAT=3 bash tests/e2e/trigger.sh opus   # same case N times: triggering is stochastic, so a
 #                                             # single green run is not evidence that it is stable
 set -uo pipefail
@@ -23,7 +24,7 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # hijack this script's own session launch (it did, once).
 CLAUDE_BIN="$(command -v claude)"
 REPO="$(cd "$HERE/../.." && pwd)"
-FILTER="${1:-}"; PAR="${PAR:-4}"; MODEL="${MODEL:-}"; TURNS="${TURNS:-10}"; REPEAT="${REPEAT:-1}"
+FILTER="${1:-}"; PAR="${PAR:-4}"; MODEL="${MODEL:-}"; TURNS="${TURNS:-16}"; REPEAT="${REPEAT:-1}"
 # shellcheck source=tests/e2e/lib.sh
 . "$HERE/lib.sh"
 ART="${ART:-$(default_art trigger)}"; mkdir -p "$ART"; ART="$(cd "$ART" && pwd)"

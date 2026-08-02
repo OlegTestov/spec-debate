@@ -14,6 +14,7 @@ bash tests/hermetic/run.sh              # all 73 cases (one is skipped when run 
 bash tests/hermetic/run.sh opencode     # filter by case-name substring
 
 bash tests/e2e/trigger.sh               # 28 phrasings, 4 at a time
+TURNS=24 bash tests/e2e/trigger.sh privacy   # privacy mode drafts an abstract first: it needs more
 MODEL=sonnet PAR=6 bash tests/e2e/trigger.sh
 bash tests/e2e/fallback.sh
 bash tests/e2e/quality.sh q3            # one scenario
