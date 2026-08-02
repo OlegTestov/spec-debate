@@ -1,10 +1,14 @@
 #!/usr/bin/env bash
 # run_codex_critique.sh — run a single OpenAI Codex critique pass, robustly.
 #
-# Usage: run_codex_critique.sh <prompt_file> [effort] [workdir]
+# Usage: run_codex_critique.sh <prompt_file> [effort] [workdir] [model]
 #   prompt_file : path to a file containing the full prompt (spec embedded inside,
 #                 or referenced by exact in-workdir path with a read-in-full instruction)
-#   effort      : model_reasoning_effort — high (default) | medium | low | xhigh
+#   effort      : model_reasoning_effort — high | medium | low | xhigh. EMPTY (the default) passes
+#                 nothing, so codex resolves it from its own configuration: overriding an effort the
+#                 caller never asked about would silently downgrade a user who configured a higher one.
+#   model       : passed as -m. Empty (the default) leaves codex's configured model alone. Not
+#                 validated here — an unknown model must fail loudly in codex, never fall back
 #   workdir     : sandbox root for codex (-C). Defaults to the prompt file's dir.
 #   env CODEX_MAX_WAIT_SECS : seconds to wait for a running codex to clear before refusing
 #                 (default 5 — covers teardown overlap; 0 disables the wait). Raise it (e.g. 900)
@@ -32,13 +36,14 @@
 
 set -uo pipefail
 
-PROMPT_FILE="${1:?usage: run_codex_critique.sh <prompt_file> [effort] [workdir]}"
-EFFORT="${2:-high}"
+PROMPT_FILE="${1:?usage: run_codex_critique.sh <prompt_file> [effort] [workdir] [model]}"
+EFFORT="${2:-}"
 WORKDIR="${3:-$(dirname "$PROMPT_FILE")}"
+MODEL="${4:-}"
 
 case "$EFFORT" in
-  high|medium|low|xhigh) ;;
-  *) echo "ERROR: invalid effort '$EFFORT' (use: high|medium|low|xhigh)." >&2; exit 5 ;;
+  ""|high|medium|low|xhigh) ;;
+  *) echo "ERROR: invalid effort '$EFFORT' (use: high|medium|low|xhigh, or empty to inherit)." >&2; exit 5 ;;
 esac
 
 if ! command -v codex >/dev/null 2>&1; then
@@ -111,7 +116,8 @@ if [ ! -d "$WORKDIR" ]; then
 fi
 
 ERR_FILE="$(mktemp "${TMPDIR:-/tmp}/spec-debate-codex.XXXXXX")"  # trailing X's: portable BSD+GNU
-trap 'rm -f "$ERR_FILE"' EXIT  # never leave the temp stderr file behind
+OUT_FILE="$(mktemp "${TMPDIR:-/tmp}/spec-debate-codex.XXXXXX")"
+trap 'rm -f "$ERR_FILE" "$OUT_FILE"' EXIT  # never leave the temp files behind
 
 # Feed the prompt to codex via STDIN, not as an argv arg. `codex exec` reads instructions from
 # stdin when the prompt argument is `-` (see `codex exec --help`). This keeps the full document
@@ -119,15 +125,28 @@ trap 'rm -f "$ERR_FILE"' EXIT  # never leave the temp stderr file behind
 # exposed in the process list (ps / /proc) to other local users. The file provides EOF, so the
 # run terminates cleanly — the old hang ("Reading additional input from stdin...") came from
 # passing the doc on argv while an *open, idle* stdin was attached, which is a different case.
+# Only what was asked for. -c and -m override the user's own codex configuration, so they go in
+# solely on request; the sandbox, the workdir and the stdin sentinel are ours by design and always set.
+# (`${arr[@]+"${arr[@]}"}` is the bash 3.2-safe way to expand a possibly-empty array under `set -u`.)
+opts=()
+[ -n "$EFFORT" ] && opts+=(-c "model_reasoning_effort=\"$EFFORT\"")
+[ -n "$MODEL" ]  && opts+=(-m "$MODEL")
 codex exec \
   --skip-git-repo-check \
   -C "$WORKDIR" \
   -s read-only \
-  -c "model_reasoning_effort=\"$EFFORT\"" \
+  ${opts[@]+"${opts[@]}"} \
   - \
   <"$PROMPT_FILE" \
+  >"$OUT_FILE" \
   2>"$ERR_FILE"
 status=$?
+
+cat "$OUT_FILE"
+# The marker must be its OWN line. codex's stdout is buffered to a file (instead of streamed) purely
+# so this is checkable: without the guard, output ending mid-line glues the marker onto it
+# ("...no TTL.CODEX_EXIT:0"), and the caller's anchored match then finds no marker at all.
+[ -n "$(tail -c1 "$OUT_FILE")" ] && echo
 
 # Keep stdout (the critique) clean; surface stderr only when the run actually failed.
 if [ "$status" -ne 0 ]; then

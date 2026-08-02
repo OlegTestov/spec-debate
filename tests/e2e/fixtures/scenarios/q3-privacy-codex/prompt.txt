@@ -1,0 +1,1 @@
+debate the redesign of billing.py with codex, but privacy mode — don't send the code, just an abstracted summary. The goal is idempotent invoice creation so retries can't double-charge.

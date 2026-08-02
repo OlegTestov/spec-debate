@@ -1,0 +1,1 @@
+think it through with kimi before I refactor ratelimit.py — draft the change-spec first, don't touch the code yet

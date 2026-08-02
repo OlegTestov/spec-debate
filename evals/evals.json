@@ -1,6 +1,6 @@
 {
   "skill_name": "spec-debate",
-  "notes": "Functional end-to-end dogfood (not baseline-vs-skill): without the skill the agent wouldn't call Codex, vet, or persist state, so there is no sensible 'no-skill' baseline. These six target DISTINCT critical paths with no overlap: (1) iterable round 1, (2) multi-round continuation, (3) prompt-only consult, (4) code change-spec, (5) privacy-mode, (6) idea/claim → position-spec iterable. Triggering and effort-parsing are folded as expectations inside evals 1/3/4; context-resolution is folded into eval 2 (it resolves the in-progress spec from the conversation). Evals are LIVE runs needing an authenticated Codex CLI (they cost money and edit files), so they are a manual pre-release gate. Setup: eval 1 needs a short throwaway spec at the referenced path; eval 2 must run IMMEDIATELY AFTER eval 1 in the same conversation/workdir (it depends on eval 1's spec + state); evals 4-5 each need a tiny throwaway code file at the referenced path; eval 6 drafts its position-spec + state in the working dir and needs no pre-seeded file.",
+  "notes": "Functional end-to-end dogfood (not baseline-vs-skill): without the skill the agent wouldn't call a reviewer, vet, or persist state, so there is no sensible 'no-skill' baseline. These nine target DISTINCT critical paths with no overlap: (1) iterable round 1, (2) multi-round continuation, (3) prompt-only consult, (4) code change-spec, (5) privacy-mode, (6) idea/claim → position-spec iterable, (7) reviewer routing by model name (opencode), (8) no-name default + fallback chain, (9) worker-not-reviewer must-NOT-fire. Triggering and effort-parsing are folded as expectations inside evals 1/3/4; context-resolution is folded into eval 2 (it resolves the in-progress spec from the conversation). Evals are LIVE runs needing the respective CLIs authenticated (evals 1-6: codex; eval 7: opencode; eval 8: whichever harnesses are installed) — they cost money and edit files, so they are a manual pre-release gate. Setup: eval 1 needs a short throwaway spec at the referenced path; eval 2 must run IMMEDIATELY AFTER eval 1 in the same conversation/workdir (it depends on eval 1's spec + state); evals 4-5 each need a tiny throwaway code file at the referenced path; evals 6-9 need no pre-seeded file.",
   "evals": [
     {
       "id": 1,
@@ -8,7 +8,7 @@
       "expected_output": "Round 1: Claude and codex each independently propose improvements (the Codex prompt does NOT contain Claude's current-round proposal list); Claude merges both lists with veto (verifying against the actual file, not blindly), applies accepted ones via Edit, writes a skimmable report (accepted/partial/rejected with one-line reasons and source codex|own), and creates .url-shortener-spec.md.debate-state.json with round 1 recorded. Effort defaults to high (no effort word in the prompt).",
       "files": ["/tmp/spec-debate-test/url-shortener-spec.md"],
       "expectations": [
-        "A Codex critique ran via scripts/run_codex_critique.sh (exactly one codex exec at a time)",
+        "A Codex critique ran via scripts/run_critique.sh codex (which enforces one codex exec at a time)",
         "The Codex prompt file did NOT contain Claude's own current-round proposal list (independence preserved)",
         "The report and state include `own`-sourced findings that went through the same accept/partial/reject vetting as Codex's (rejected own proposals are reported whenever they occur)",
         "Every finding has a one-line reason; effort defaulted to high (no effort directive in the prompt)",
@@ -37,7 +37,7 @@
       "expectations": [
         "Triggered on a casual second-opinion request with neither 'debate' nor 'spec' in the prompt",
         "Explicitly chose and stated prompt-only mode",
-        "Exactly one codex pass via scripts/run_codex_critique.sh; no rounds were run",
+        "Exactly one codex pass via scripts/run_critique.sh codex; no rounds were run",
         "No new subject-specific .debate-state.json file was created for this question",
         "The inline report gives Codex's position, Claude's own vetted take, the prompt-file path, and a one-line 'sent to Codex' note"
       ]
@@ -76,10 +76,46 @@
         "Triggered on the explicit second-model hand-off: 'stress-test it with codex'",
         "Recognized IDEA/CLAIM/THESIS with no existing spec file and no source file",
         "Drafted a short position-spec artifact containing claim-as-goal, assumptions, constraints, strongest counter-arguments, conditions/limits, and open questions",
-        "Ran exactly two iterative rounds via scripts/run_codex_critique.sh using that position-spec as the debated artifact",
+        "Ran exactly two iterative rounds via scripts/run_critique.sh codex using that position-spec as the debated artifact",
         "Applied merge-with-veto to tighten the position-spec across rounds",
         ".debate-state.json was created/updated in the working dir and parses as one valid JSON document",
         "Did not enter CODE mode and did not stay prompt-only"
+      ]
+    },
+    {
+      "id": 7,
+      "prompt": "Ask kimi whether this plan holds up: cache external-API responses in process memory with a 5-minute TTL, key = URL.",
+      "expected_output": "The skill triggers on a named reviewer model (kimi) and routes to the opencode harness: Step 0 resolves the latest kimi version (discovered via `opencode models`, matched by model-family basename), the critique runs via scripts/run_critique.sh opencode with the prompt fed over stdin, and the report names the reviewer and its provider/gateway. No codex call is made.",
+      "files": [],
+      "expectations": [
+        "Triggered on 'ask kimi' — a reviewer model named by name, no harness word in the prompt",
+        "Resolved kimi -> opencode harness with the LATEST kimi version (family matched by basename glob; an unresolvable family errors instead of silently substituting)",
+        "The critique ran via scripts/run_critique.sh opencode with the prompt fed via stdin (never argv)",
+        "No codex invocation occurred (single named reviewer respected)",
+        "The report names the reviewer model and its actual provider"
+      ]
+    },
+    {
+      "id": 8,
+      "prompt": "Get a second opinion on this plan from someone: store user sessions only in a client-side JWT, no server-side store.",
+      "expected_output": "No reviewer named: Step 0 applies the default chain codex → opencode → claude, preflighting the resolved harness (CLI present + auth/config) and falling to the next only when one is missing — never silently substituting a *named* harness. The debate runs on the first usable harness and the report states which reviewer/provider was used.",
+      "files": [],
+      "expectations": [
+        "Triggered on an explicit external-opinion request with no model or harness named",
+        "The default chain codex → opencode → claude was applied in order, preflighting the resolved harness (command -v + auth/config)",
+        "Exactly one reviewer harness ran the critique via scripts/run_critique.sh",
+        "The report names which reviewer/provider was actually used (so a fallback is visible to the user)"
+      ]
+    },
+    {
+      "id": 9,
+      "prompt": "Rewrite this function with kimi: def median(nums): nums.sort(); return nums[len(nums) // 2]",
+      "expected_output": "The skill does NOT trigger: kimi is named as the WORKER ('do the task with model X'), not as a reviewer of an artifact. The agent handles or declines the rewrite itself; no spec-debate invocation, no run_critique.sh call, no debate-state file.",
+      "files": [],
+      "expectations": [
+        "The skill did NOT fire (no Skill invocation, no run_critique.sh / run_codex_critique.sh call)",
+        "No .debate-state.json file was created",
+        "The agent treated the request as a coding task (its own work), not as a review hand-off"
       ]
     }
   ]

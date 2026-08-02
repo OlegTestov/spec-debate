@@ -1,0 +1,21 @@
+name: tests
+
+on:
+  push:
+  pull_request:
+
+# Only the hermetic suite runs here: it stubs the reviewer CLIs, so it needs no provider account and no
+# secrets. The e2e suites drive a real Claude session and are a manual pre-release gate.
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # Pinned by version: this gate runs on every push, and a shellcheck release that adds a new check
+      # would otherwise fail it on code nobody touched.
+      - name: shellcheck v0.10.0
+        run: |
+          docker run --rm -v "$PWD:/mnt" -w /mnt koalaman/shellcheck:v0.10.0 \
+            -S warning scripts/*.sh tests/hermetic/*.sh tests/e2e/*.sh
+      - name: hermetic suite
+        run: bash tests/hermetic/run.sh
