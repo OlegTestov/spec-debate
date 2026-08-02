@@ -144,7 +144,8 @@
     "expect_reviewer": {
       "harness": "opencode",
       "min_prompts": 1
-    }
+    },
+    "want_state_rounds": 1
   },
   "q3-privacy-codex": {
     "artifact": "billing.py",
@@ -180,6 +181,7 @@
     "expect_reviewer": {
       "harness": "codex",
       "min_prompts": 1
-    }
+    },
+    "want_state_rounds": 1
   }
 }
